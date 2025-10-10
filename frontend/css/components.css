@@ -1,0 +1,51 @@
+.card-neon-border {
+  border: 1px solid transparent;
+  box-shadow: 0 0 5px var(--neon-blue);
+  transition: all 0.3s ease;
+}
+.card-neon-border:hover {
+  box-shadow: 0 0 15px var(--neon-blue), 0 0 25px var(--neon-blue);
+}
+.modern-button {
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
+  box-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-pink);
+  color: white;
+  border: none;
+}
+.modern-button:hover { transform: scale(1.05); }
+.modern-button-secondary {
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  border: 1px solid var(--neon-blue);
+  color: var(--neon-blue);
+  background: transparent;
+  transition: all 0.3s ease;
+}
+.modern-button-secondary:hover {
+  background: var(--neon-blue);
+  color: var(--dark-bg);
+  box-shadow: 0 0 10px var(--neon-blue);
+}
+hr.neon-hr {
+  border: none;
+  height: 2px;
+  background: var(--neon-blue);
+  box-shadow: 0 0 10px var(--neon-blue);
+  margin: 4rem 0;
+}
+.select-styled {
+  appearance: none;
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2300e5ff'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E") no-repeat right 0.75rem center;
+  background-size: 1rem;
+  padding: 0.75rem;
+  padding-right: 2.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--neon-blue);
+  color: var(--text-color);
+  cursor: pointer;
+}

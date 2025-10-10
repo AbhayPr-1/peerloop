@@ -1,0 +1,25 @@
+.glitch-text {
+  position: relative;
+  animation: glitch-anim 2.5s infinite linear alternate-reverse;
+  text-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-blue);
+}
+@keyframes glitch-anim {
+  0%,100% { text-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-blue); }
+  20%,60% { text-shadow: 2px -2px 0 var(--glitch-color); }
+  40%,80% { text-shadow: -2px 2px 0 var(--glitch-color); }
+}
+.flicker { animation: flicker-anim 2s infinite alternate; }
+@keyframes flicker-anim {
+  0%,100% { opacity: 1; }
+  25% { opacity: 0.6; }
+  50% { opacity: 0.9; }
+}
+.hidden-section {
+  opacity: 0;
+  transform: translateY(50px);
+  transition: opacity 1s ease-out, transform 1s ease-out;
+}
+.visible-section {
+  opacity: 1;
+  transform: translateY(0);
+}
