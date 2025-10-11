@@ -49,3 +49,7 @@ hr.neon-hr {
   color: var(--text-color);
   cursor: pointer;
 }
+.select-styled option {
+  color: var(--dark-bg);
+  background-color: white;
+}
