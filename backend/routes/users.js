@@ -1,4 +1,4 @@
-// backend/routes/users.js (NEW FILE)
+// backend/routes/users.js
 
 const express = require('express');
 const router = express.Router();
@@ -29,8 +29,9 @@ router.post('/cart/:productId', auth, async (req, res) => {
     if (!user || !product) {
       return res.status(404).json({ msg: 'User or Product not found' });
     }
-
-    // Check if the product is already in the cart
+    if (product.status === 'sold') {
+      return res.status(400).json({ msg: 'This product has already been sold.' });
+    }
     if (user.cart.includes(product._id)) {
       return res.status(400).json({ msg: 'Product already in cart' });
     }
@@ -38,7 +39,6 @@ router.post('/cart/:productId', auth, async (req, res) => {
     user.cart.push(product._id);
     await user.save();
     
-    // Populate the cart to return the full product details
     await user.populate('cart');
     res.json(user.cart);
 
@@ -48,7 +48,6 @@ router.post('/cart/:productId', auth, async (req, res) => {
   }
 });
 
-
 // --- Remove an item from the cart ---
 router.delete('/cart/:productId', auth, async (req, res) => {
     try {
@@ -56,8 +55,6 @@ router.delete('/cart/:productId', auth, async (req, res) => {
         if (!user) {
             return res.status(404).json({ msg: 'User not found' });
         }
-
-        // Pull the product ID from the cart array
         user.cart.pull(req.params.productId);
         await user.save();
         
@@ -66,6 +63,40 @@ router.delete('/cart/:productId', auth, async (req, res) => {
 
     } catch (err) {
         console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// --- GET LOGGED-IN USER'S LISTINGS ---
+router.get('/me/listings', auth, async (req, res) => {
+    try {
+        const products = await Product.find({ seller: req.user.id, status: 'for-sale' }).sort({ createdAt: -1 });
+        res.json(products);
+    } catch (err) {
+        res.status(500).send('Server Error');
+    }
+});
+
+// --- GET LOGGED-IN USER'S SOLD HISTORY ---
+router.get('/me/sold', auth, async (req, res) => {
+    try {
+        const products = await Product.find({ seller: req.user.id, status: 'sold' })
+            .populate('buyer', 'name') // Get the buyer's name
+            .sort({ createdAt: -1 });
+        res.json(products);
+    } catch (err) {
+        res.status(500).send('Server Error');
+    }
+});
+
+// --- GET LOGGED-IN USER'S PURCHASE HISTORY ---
+router.get('/me/purchased', auth, async (req, res) => {
+    try {
+        const products = await Product.find({ buyer: req.user.id, status: 'sold' })
+            .populate('seller', 'name') // Get the seller's name
+            .sort({ createdAt: -1 });
+        res.json(products);
+    } catch (err) {
         res.status(500).send('Server Error');
     }
 });

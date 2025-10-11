@@ -1,6 +1,7 @@
 // frontend/js/ui.js
 function showSection(sectionId) {
-  const sections = ["hero", "services", "marketplace", "sell-tab", "cart-tab"];
+  // Add the new profile sections to the array
+  const sections = ["hero", "services", "marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab"];
   sections.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -17,6 +18,7 @@ function renderUI() {
   const sellBtn = document.getElementById("nav-sell-btn");
   const cartBtn = document.getElementById("nav-cart-btn");
   const authBtn = document.getElementById("auth-btn");
+  const profileDropdown = document.getElementById("profile-dropdown-container");
   const loggedIn = !!currentUser;
 
   exploreBtn.classList.remove("hidden");
@@ -24,11 +26,14 @@ function renderUI() {
   cartBtn.classList.toggle("hidden", !loggedIn);
 
   if (loggedIn) {
-    authBtn.textContent = "Logout";
-    authBtn.onclick = logout;
+    authBtn.classList.add('hidden');
+    profileDropdown.classList.remove('hidden');
+    document.getElementById('profile-username').textContent = currentUser.name;
   } else {
+    authBtn.classList.remove('hidden');
     authBtn.textContent = "Login";
     authBtn.onclick = showAuthModal;
+    profileDropdown.classList.add('hidden');
   }
   updateCartCount();
 }

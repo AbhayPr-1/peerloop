@@ -2,11 +2,23 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { body, validationResult } = require('express-validator'); // Import validator functions
 const User = require('../models/User');
 const router = express.Router();
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', [
+  // --- VALIDATION RULES ---
+  body('name', 'Name is required and must be at least 3 characters').not().isEmpty().trim().isLength({ min: 3 }),
+  body('email', 'Please include a valid email').isEmail().normalizeEmail(),
+  body('password', 'Password must be at least 6 characters').isLength({ min: 6 })
+], async (req, res) => {
+  // --- VALIDATION CHECK ---
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
   const { name, email, password } = req.body;
   try {
     let user = await User.findOne({ $or: [{ email }, { name }] });
@@ -27,7 +39,17 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', [
+  // --- VALIDATION RULES ---
+  body('identifier', 'Email or Username is required').not().isEmpty(),
+  body('password', 'Password is required').exists()
+], async (req, res) => {
+  // --- VALIDATION CHECK ---
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
   const { identifier, password } = req.body;
   try {
     let user = await User.findOne({ $or: [{ email: identifier }, { name: identifier }] });
@@ -45,9 +67,17 @@ router.post('/login', async (req, res) => {
 });
 
 // MetaMask Login/Register
-router.post('/metamask', async (req, res) => {
+router.post('/metamask', [
+    // --- VALIDATION RULE ---
+    body('walletAddress', 'Wallet address is required and must be a valid Ethereum address').not().isEmpty().isEthereumAddress()
+], async (req, res) => {
+    // --- VALIDATION CHECK ---
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
     const { walletAddress } = req.body;
-    if (!walletAddress) return res.status(400).json({ msg: 'Wallet address required' });
     try {
         let user = await User.findOne({ walletAddress });
         if (!user) {

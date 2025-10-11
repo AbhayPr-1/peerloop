@@ -3,17 +3,25 @@ function createProductCard(product) {
   const card = document.createElement("div");
   card.className = "bg-gray-800 rounded-2xl p-6 card-neon-border flex flex-col";
   let actionButtons = "";
-  console.log("Checking IDs -> My ID:", currentUser?.id, "Seller ID:", product.seller);
-  if (currentUser && currentUser.id !== product.seller) {
+
+  const sellerId = (typeof product.seller === 'object' && product.seller !== null) ? product.seller._id : product.seller;
+  const sellerName = (typeof product.seller === 'object' && product.seller !== null) ? product.seller.name : 'Your new listing';
+
+  // --- MODIFIED LOGIC ---
+  // Buttons are now shown if the user is a guest OR if the logged-in user is not the seller.
+  // The only time buttons are hidden is if the logged-in user is the seller.
+  if (!currentUser || (currentUser && currentUser.id !== sellerId)) {
     actionButtons = `
       <button class="modern-button-secondary add-to-cart-btn" data-id="${product._id}">Add to Cart</button>
       <button class="modern-button buy-now-btn" data-id="${product._id}">Buy Now</button>
     `;
   }
+
   card.innerHTML = `
     <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4">
     <h3 class="text-2xl font-bold text-neon-blue mb-2">${product.name}</h3>
     <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
+    <div class="text-sm text-gray-500 mb-2">Seller: ${sellerName}</div>
     <div class="flex items-center justify-between mb-4">
       <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
       <span class="text-xs px-2 py-1 rounded bg-gray-700">${product.category}</span>
@@ -29,25 +37,61 @@ function renderProducts(list) {
     return;
   }
   list.forEach(p => grid.appendChild(createProductCard(p)));
-  grid.querySelectorAll(".add-to-cart-btn").forEach(btn => btn.addEventListener("click", e => addToCart(e.currentTarget.dataset.id)));
-  grid.querySelectorAll(".buy-now-btn").forEach(btn => btn.addEventListener("click", e => buyNow(e.currentTarget.dataset.id)));
+
+  // --- MODIFIED LOGIC ---
+  // Event listeners now check for a logged-in user before acting.
+  grid.querySelectorAll(".add-to-cart-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      if (currentUser) {
+        addToCart(e.currentTarget.dataset.id);
+      } else {
+        showMessage('Please log in to add items to your cart.');
+        showAuthModal();
+      }
+    });
+  });
+
+  grid.querySelectorAll(".buy-now-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      if (currentUser) {
+        buyNow(e.currentTarget.dataset.id);
+      } else {
+        showMessage('Please log in to purchase an item.');
+        showAuthModal();
+      }
+    });
+  });
 }
 
 async function fetchProducts() {
+    const grid = document.getElementById("product-grid");
+    let skeletonHTML = '';
+    for (let i = 0; i < 6; i++) {
+        skeletonHTML += `
+            <div class="skeleton-card">
+                <div class="skeleton-image"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line x-short"></div>
+            </div>
+        `;
+    }
+    grid.innerHTML = skeletonHTML;
+
     try {
         const response = await fetch(`${API_URL}/api/products`);
         if (!response.ok) throw new Error('Failed to fetch products');
         allProducts = await response.json();
         filterAndSortProducts();
     } catch (error) {
-        document.getElementById("product-grid").innerHTML = `<p class="text-center text-gray-500 col-span-full">Error: Could not load products.</p>`;
+        grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">Error: Could not load products.</p>`;
     }
 }
 
 function filterAndSortProducts() {
   const q = (document.getElementById("search-input")?.value || "").trim().toLowerCase();
-  const cat = document.getElementById("category-filter")?.value || "all";
-  const sortBy = document.getElementById("sort-by")?.value || "date-desc";
+  const cat = document.querySelector("#category-filter input[type='hidden']")?.value || "all";
+  const sortBy = document.querySelector("#sort-by input[type='hidden']")?.value || "date-desc";
   let list = [...allProducts];
   if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   if (cat !== "all") list = list.filter(p => p.category === cat);
@@ -65,10 +109,13 @@ async function buyNow(productId) {
   if (!currentUser) return showMessage("You must be logged in to purchase.");
   const product = allProducts.find(p => p._id === productId);
   if (!product) return showMessage("Product not found.");
-  if (product.seller === currentUser.id) return showMessage("You cannot buy your own listing.");
+
+  const sellerId = (typeof product.seller === 'object' && product.seller !== null) ? product.seller._id : product.seller;
+  if (sellerId === currentUser.id) return showMessage("You cannot buy your own listing.");
+
   try {
-    const response = await fetch(`${API_URL}/api/products/${productId}`, {
-      method: 'DELETE',
+    const response = await fetch(`${API_URL}/api/products/${productId}/buy`, {
+      method: 'POST',
       headers: { 'x-auth-token': localStorage.getItem('token') }
     });
     const data = await response.json();
@@ -76,6 +123,6 @@ async function buyNow(productId) {
     showMessage(`Purchased "${product.name}" successfully!`);
     allProducts = allProducts.filter(p => p._id !== productId);
     filterAndSortProducts();
-    removeFromCart(productId, false); // Remove from cart but don't show a message
+    removeFromCart(productId, false);
   } catch(error) { showMessage(error.message); }
 }

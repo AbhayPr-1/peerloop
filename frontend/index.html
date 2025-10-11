@@ -28,7 +28,22 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.182 1.767.63 1.767H18M9 19a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z" /></svg>
         <span id="cart-count"></span>
       </button>
-      <button id="auth-btn" class="modern-button-secondary">Login</button>
+      <button id="auth-btn" class="modern-button">Login</button>
+      <div id="profile-dropdown-container" class="relative hidden">
+          <button id="profile-dropdown-btn" class="modern-button-secondary flex items-center space-x-2">
+              <span id="profile-username"></span>
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+          </button>
+          <div id="profile-dropdown-menu" class="dropdown-menu right-0 w-56 hidden">
+              <div class="py-1" role="menu" aria-orientation="vertical">
+                  <a href="#" id="nav-listings-btn" class="block" role="menuitem">My Listings</a>
+                  <a href="#" id="nav-sold-btn" class="block" role="menuitem">Sold History</a>
+                  <a href="#" id="nav-purchased-btn" class="block" role="menuitem">Purchase History</a>
+                  <div class="border-t border-gray-700 my-1"></div>
+                  <a href="#" id="logout-btn" class="block" role="menuitem">Logout</a>
+              </div>
+          </div>
+      </div>
     </nav>
   </header>
 
@@ -55,8 +70,34 @@
       <h2 id="marketplace-heading" class="text-4xl sm:text-5xl font-bold mb-8 text-center">EXPLORE GEARS</h2>
       <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
         <input type="text" id="search-input" placeholder="Search products..." class="w-full sm:w-1/3 p-3 rounded-xl auth-input">
-        <select id="category-filter" class="w-full sm:w-1/4 select-styled"><option value="all">All Categories</option><option value="electronics">Electronics</option><option value="wearables">Wearables</option><option value="cybernetics">Cybernetics</option><option value="data">Data & Software</option></select>
-        <select id="sort-by" class="w-full sm:w-1/4 select-styled"><option value="date-desc">Newest First</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="name-asc">Name: A-Z</option><option value="name-desc">Name: Z-A</option></select>
+        
+        <div id="category-filter" class="relative w-full sm:w-1/4">
+            <button type="button" class="custom-select-btn w-full flex justify-between items-center">
+                <span>All Categories</span>
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+            </button>
+            <div class="dropdown-menu w-full hidden">
+                <a href="#" data-value="all">All Categories</a>
+                <a href="#" data-value="electronics">Electronics</a>
+                <a href="#" data-value="wearables">Wearables</a>
+                <a href="#" data-value="cybernetics">Cybernetics</a>
+                <a href="#" data-value="data">Data & Software</a>
+            </div>
+        </div>
+
+        <div id="sort-by" class="relative w-full sm:w-1/4">
+            <button type="button" class="custom-select-btn w-full flex justify-between items-center">
+                <span>Newest First</span>
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+            </button>
+            <div class="dropdown-menu w-full hidden">
+                <a href="#" data-value="date-desc">Newest First</a>
+                <a href="#" data-value="price-asc">Price: Low to High</a>
+                <a href="#" data-value="price-desc">Price: High to Low</a>
+                <a href="#" data-value="name-asc">Name: A-Z</a>
+                <a href="#" data-value="name-desc">Name: Z-A</a>
+            </div>
+        </div>
       </div>
       <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"></div>
     </div>
@@ -70,7 +111,22 @@
           <div><label for="product-name" class="block text-xl font-medium mb-2 text-neon-blue">Product Name</label><input type="text" id="product-name" placeholder="Cyberdeck 2077" required class="w-full p-3 rounded-xl auth-input"></div>
           <div><label for="product-desc" class="block text-xl font-medium mb-2 text-neon-blue">Description</label><textarea id="product-desc" rows="4" placeholder="A custom rig for hacking." required class="w-full p-3 rounded-xl auth-input"></textarea></div>
           <div><label for="product-price" class="block text-xl font-medium mb-2 text-neon-blue">Price (ETH)</label><input type="number" id="product-price" placeholder="0.0001" step="0.0001" min="0" required class="w-full p-3 rounded-xl auth-input"></div>
-          <div><label for="product-category" class="block text-xl font-medium mb-2 text-neon-blue">Category</label><select id="product-category" required class="w-full select-styled"><option value="electronics">Electronics</option><option value="wearables">Wearables</option><option value="cybernetics">Cybernetics</option><option value="data">Data & Software</option></select></div>
+          
+          <div><label for="product-category" class="block text-xl font-medium mb-2 text-neon-blue">Category</label>
+            <div id="product-category" class="relative w-full">
+                <button type="button" class="custom-select-btn w-full flex justify-between items-center">
+                    <span>Electronics</span>
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+                <div class="dropdown-menu w-full hidden">
+                    <a href="#" data-value="electronics">Electronics</a>
+                    <a href="#" data-value="wearables">Wearables</a>
+                    <a href="#" data-value="cybernetics">Cybernetics</a>
+                    <a href="#" data-value="data">Data & Software</a>
+                </div>
+            </div>
+          </div>
+          
           <div><label for="product-photo" class="block text-xl font-medium mb-2 text-neon-blue">Product Image</label><input type="file" id="product-photo" accept="image/*" required class="w-full p-3 rounded-xl auth-input"><img id="image-preview" src="#" alt="Image Preview" class="mt-4 hidden w-full h-auto object-cover rounded-xl" /></div>
           <button type="submit" class="w-full modern-button text-lg">Create Listing</button>
         </form>
@@ -87,6 +143,18 @@
         <button id="checkout-btn" class="w-full modern-button text-lg">Checkout</button>
       </div>
     </div>
+  </section>
+
+  <section id="my-listings-tab" class="min-h-screen p-8 hidden-section hidden">
+    <div class="max-w-7xl mx-auto"><h2 class="text-4xl sm:text-5xl font-bold mb-8 text-center">My Active Listings</h2><div id="my-listings-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"></div></div>
+  </section>
+
+  <section id="sold-history-tab" class="min-h-screen p-8 hidden-section hidden">
+    <div class="max-w-7xl mx-auto"><h2 class="text-4xl sm:text-5xl font-bold mb-8 text-center">Sold History</h2><div id="sold-history-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"></div></div>
+  </section>
+
+  <section id="purchase-history-tab" class="min-h-screen p-8 hidden-section hidden">
+    <div class="max-w-7xl mx-auto"><h2 class="text-4xl sm:text-5xl font-bold mb-8 text-center">Purchase History</h2><div id="purchase-history-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"></div></div>
   </section>
 
 <div id="auth-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
@@ -117,6 +185,7 @@
   <script src="js/auth.js"></script>
   <script src="js/marketplace.js"></script>
   <script src="js/cart.js"></script>
+  <script src="js/custom-select.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
