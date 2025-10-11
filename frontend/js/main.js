@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderUI();
   fetchProducts();
 
-  // INITIALIZE CUSTOM SELECTS
   initializeCustomSelect('category-filter', filterAndSortProducts);
   initializeCustomSelect('product-category');
   initializeCustomSelect('sort-by', filterAndSortProducts);
@@ -12,10 +11,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Nav & Page Event Listeners ---
 document.getElementById('nav-home-btn').addEventListener('click', () => {
+  // Manually hide all other primary sections
+  const allSections = ["marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab"];
+  allSections.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+
+  // Manually ensure the two home sections are visible
+  document.getElementById('hero').classList.remove('hidden');
   document.getElementById('services').classList.remove('hidden');
-  showSection('hero');
-  document.getElementById('hero').scrollIntoView({ behavior: 'smooth' });
+
+  // Scroll to the top of the page
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 });
+
 document.getElementById('nav-explore-btn').addEventListener('click', () => showSection('marketplace'));
 document.getElementById('nav-sell-btn').addEventListener('click', () => currentUser ? showSection('sell-tab') : showMessage('Login to sell'));
 document.getElementById('nav-cart-btn').addEventListener('click', () => currentUser ? (showSection('cart-tab'), renderCart()) : showMessage('Login to view cart'));
@@ -38,7 +45,6 @@ document.getElementById("metamask-login-btn").addEventListener("click", handleMe
 document.getElementById('profile-dropdown-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     const menu = document.getElementById('profile-dropdown-menu');
-    // Close other custom selects before opening this one
     document.querySelectorAll('.custom-select-btn + .dropdown-menu').forEach(otherMenu => {
         otherMenu.classList.add('hidden');
     });
