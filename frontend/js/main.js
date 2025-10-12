@@ -18,10 +18,9 @@ document.getElementById('nav-home-btn').addEventListener('click', () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-// MODIFIED: This now re-renders the products every time you click "Explore Gears"
 document.getElementById('nav-explore-btn').addEventListener('click', () => {
   showSection('marketplace');
-  filterAndSortProducts(); // This forces a redraw with the latest data
+  filterAndSortProducts();
 });
 
 document.getElementById('nav-sell-btn').addEventListener('click', () => currentUser ? showSection('sell-tab') : showMessage('Login to sell'));
@@ -77,7 +76,7 @@ document.getElementById('product-photo').addEventListener('change', e => {
 document.getElementById("create-listing-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return showMessage("You must be logged in.");
-  
+
   const token = localStorage.getItem('token');
   const name = document.getElementById("product-name").value.trim();
   const description = document.getElementById("product-desc").value.trim();
@@ -101,13 +100,13 @@ document.getElementById("create-listing-form").addEventListener("submit", async 
         headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
         body: JSON.stringify({ name, description, price, category, imageUrl })
       });
-      
+
       const newProduct = await response.json();
       if (!response.ok) {
         const errorMsg = newProduct.errors ? newProduct.errors[0].msg : (newProduct.msg || 'Failed to create listing');
         throw new Error(errorMsg);
       }
-      
+
       hideLoadingMessage();
       showMessage("Product listed successfully!");
       document.getElementById("create-listing-form").reset();
@@ -115,13 +114,13 @@ document.getElementById("create-listing-form").addEventListener("submit", async 
       document.querySelector("#product-category .custom-select-btn span").textContent = 'Electronics';
 
       newProduct.seller = { _id: currentUser.id, name: currentUser.name };
-      
+
       allProducts.unshift(newProduct);
       filterAndSortProducts();
       showSection('marketplace');
-    } catch(error) { 
+    } catch(error) {
       hideLoadingMessage();
-      showMessage(error.message); 
+      showMessage(error.message);
     }
   };
   reader.onerror = () => {
@@ -168,7 +167,7 @@ async function renderProfileSection(type) {
     });
     if (!response.ok) throw new Error('Could not fetch data.');
     const products = await response.json();
-    
+
     grid.innerHTML = '';
     if (products.length === 0) {
       grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No products found in this section.</p>`;
@@ -182,24 +181,6 @@ async function renderProfileSection(type) {
   } catch (error) {
     grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
   }
-}
-
-// --- FILTER AND SORT FUNCTION ---
-function filterAndSortProducts() {
-  const q = (document.getElementById("search-input")?.value || "").trim().toLowerCase();
-  const cat = document.querySelector("#category-filter input[type='hidden']")?.value || "all";
-  const sortBy = document.querySelector("#sort-by input[type='hidden']")?.value || "date-desc";
-  let list = [...allProducts];
-  if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
-  if (cat !== "all") list = list.filter(p => p.category === cat);
-  switch (sortBy) {
-    case "price-asc": list.sort((a, b) => Number(a.price) - Number(b.price)); break;
-    case "price-desc": list.sort((a, b) => Number(b.price) - Number(a.price)); break;
-    case "name-asc": list.sort((a, b) => a.name.localeCompare(b.name)); break;
-    case "name-desc": list.sort((a, b) => b.name.localeCompare(a.name)); break;
-    default: list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); break;
-  }
-  renderProducts(list);
 }
 
 // --- SELLER PROFILE RENDERING FUNCTION ---
@@ -219,7 +200,7 @@ async function renderSellerProfile(sellerId, sellerName) {
   try {
     const response = await fetch(`${API_URL}/api/users/${sellerId}/products`);
     if (!response.ok) throw new Error('Could not fetch seller profile.');
-    
+
     const data = await response.json();
     const products = data.products;
 
@@ -232,9 +213,9 @@ async function renderSellerProfile(sellerId, sellerName) {
     products.forEach(product => {
       grid.appendChild(createProductCard(product));
     });
-    
+
     attachCardListeners(grid);
-    
+
   } catch (error) {
     grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
   }

@@ -9,7 +9,7 @@ const router = express.Router();
 // Register
 router.post('/register', [
   // --- VALIDATION RULES ---
-  body('name', 'Name is required and must be at least 3 characters').not().isEmpty().trim().isLength({ min: 3 }),
+  body('name', 'Name is required and must be at least 3 characters').not().isEmpty().trim().isLength({ min: 3 }).escape(),
   body('email', 'Please include a valid email').isEmail().normalizeEmail(),
   body('password', 'Password must be at least 6 characters').isLength({ min: 6 })
 ], async (req, res) => {
@@ -35,7 +35,10 @@ router.post('/register', [
       if (err) throw err;
       res.json({ token, user: { id: user.id, name: user.name } });
     });
-  } catch (err) { res.status(500).send('Server error'); }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
 });
 
 // Login
@@ -63,7 +66,10 @@ router.post('/login', [
       if (err) throw err;
       res.json({ token, user: { id: user.id, name: user.name } });
     });
-  } catch (err) { res.status(500).send('Server error'); }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
 });
 
 // MetaMask Login/Register
@@ -90,7 +96,10 @@ router.post('/metamask', [
             if (err) throw err;
             res.json({ token, user: { id: user.id, name: user.name } });
         });
-    } catch (err) { res.status(500).send('Server Error'); }
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
 });
 
 module.exports = router;

@@ -1,6 +1,7 @@
 // frontend/js/utils.js
 let currentUser = null;
 let allProducts = [];
+// This is the corrected line. We hardcode the URL for your local environment.
 const API_URL = 'http://localhost:5000';
 
 const categoryDisplayMap = {
@@ -31,7 +32,7 @@ function logout() {
   localStorage.removeItem('username');
   currentUser = null;
   renderUI();
-  filterAndSortProducts(); 
+  filterAndSortProducts();
   showMessage("You have been logged out.");
   showSection("hero");
   updateCartCount();
@@ -61,7 +62,7 @@ function createProfileProductCard(product, context) {
     const card = document.createElement("div");
     card.className = "bg-gray-800 rounded-2xl p-6 card-neon-border flex flex-col";
     let contextInfo = '';
-    
+
     const displayCategory = categoryDisplayMap[product.category] || product.category;
 
     if (context === 'sold' && product.buyer) {
