@@ -2,7 +2,7 @@
 function showSection(sectionId) {
   const sections = ["hero", "services", "marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab", "seller-profile-tab"];
   const navHomeBtn = document.getElementById('nav-home-btn');
-  const navAboutBtn = document.getElementById('nav-about-btn'); // Get the new button
+  const navAboutBtn = document.getElementById('nav-about-btn');
   const navExploreBtn = document.getElementById('nav-explore-btn');
   const navSellBtn = document.getElementById('nav-sell-btn');
 
@@ -19,14 +19,15 @@ function showSection(sectionId) {
   if (sectionId === 'hero') {
     servicesSection.classList.remove('hidden');
     navHomeBtn.classList.add('hidden');
-    navAboutBtn.classList.remove('hidden'); // Show "About Us" on homepage
+    navAboutBtn.classList.remove('hidden');
     navExploreBtn.classList.add('hidden');
     navSellBtn.classList.add('hidden');
   } else {
     servicesSection.classList.add('hidden');
     navHomeBtn.classList.remove('hidden');
-    navAboutBtn.classList.add('hidden'); // Hide "About Us" on other pages
+    navAboutBtn.classList.add('hidden');
     navExploreBtn.classList.remove('hidden');
+    // Only show the sell button on other pages if the user is logged in
     if (currentUser) {
       navSellBtn.classList.remove('hidden');
     }
@@ -35,15 +36,14 @@ function showSection(sectionId) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// ... rest of the file remains the same ...
+// ### THIS FUNCTION IS NOW FIXED ###
 function renderUI() {
-  const sellBtn = document.getElementById("nav-sell-btn");
   const cartBtn = document.getElementById("nav-cart-btn");
   const authBtn = document.getElementById("auth-btn");
   const profileDropdown = document.getElementById("profile-dropdown-container");
   const loggedIn = !!currentUser;
 
-  sellBtn.classList.toggle("hidden", !loggedIn);
+  // The logic for the "Sell Gears" button has been moved to showSection()
   cartBtn.classList.toggle("hidden", !loggedIn);
 
   if (loggedIn) {
@@ -59,6 +59,7 @@ function renderUI() {
   updateCartCount();
 }
 
+// ... rest of the file remains the same ...
 function showQuickView(product) {
     const modal = document.getElementById('quick-view-modal');
     const content = document.getElementById('quick-view-content');

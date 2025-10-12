@@ -1,3 +1,4 @@
+/* Dark Mode (Default) */
 :root {
   --neon-blue: #00e5ff;
   --neon-pink: #e6007e;
@@ -6,4 +7,20 @@
   --text-color: #f0f0f0;
   --border-glow: rgba(0, 229, 255, 0.5);
   --glitch-color: rgba(230, 0, 126, 0.7);
+}
+
+/* Light Mode */
+html[data-theme='light'] {
+  --neon-blue: #007bff;
+  --neon-pink: #dc3545;
+  --dark-bg: #f4f4f9;
+  --dark-card: #ffffff;
+  --text-color: #212529;
+  --border-glow: rgba(0, 123, 255, 0.4);
+  --glitch-color: rgba(220, 53, 69, 0.6);
+}
+
+/* Add a transition for smooth color changes */
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
 }

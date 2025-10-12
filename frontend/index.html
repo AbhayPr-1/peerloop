@@ -21,6 +21,10 @@
   <header class="w-full max-w-7xl mx-auto py-4 px-8 flex justify-between items-center mb-8">
     <h1 class="text-3xl font-bold glitch-text">P E E R L O O P</h1>
     <nav class="flex items-center space-x-4">
+      <label class="theme-switch" for="theme-toggle">
+        <input type="checkbox" id="theme-toggle" />
+        <div class="slider round"></div>
+      </label>
       <button id="nav-home-btn" class="modern-button-secondary">Home</button>
       <button id="nav-about-btn" class="modern-button-secondary hidden">About Us</button>
       <button id="nav-explore-btn" class="modern-button-secondary hidden">Explore Gears</button>
@@ -55,7 +59,7 @@
     
     <div class="flex flex-col sm:flex-row gap-4 mt-12 z-10">
       <button id="hero-explore-btn" class="modern-button text-2xl">Explore Gears</button>
-      <button id="hero-sell-btn" class="modern-button text-2xl">Sell Your Gear</button>
+      <button id="hero-sell-btn" class="modern-button text-2xl">Sell Gears</button>
     </div>
   </section>
 
@@ -65,9 +69,9 @@
     <div class="max-w-4xl mx-auto text-center">
       <h2 class="text-4xl sm:text-5xl font-bold mb-8">OUR SERVICES</h2>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="bg-gray-800 rounded-2xl p-6 card-neon-border"><h3 class="text-2xl font-bold text-neon-blue mb-4">CYBERSECURITY</h3><p class="text-gray-400">Protecting your digital assets is our top priority.</p></div>
-        <div class="bg-gray-800 rounded-2xl p-6 card-neon-border"><h3 class="text-2xl font-bold text-neon-pink mb-4">NETWORK OPTIMIZATION</h3><p class="text-gray-400">We build custom networking solutions faster and more reliable than traditional systems.</p></div>
-        <div class="bg-gray-800 rounded-2xl p-6 card-neon-border"><h3 class="text-2xl font-bold text-neon-blue mb-4">ESCROW CONTRACTS</h3><p class="text-gray-400">Ensure trustless transactions with automated, secure escrow contracts.</p></div>
+        <div class="theme-card-bg rounded-2xl p-6 card-neon-border"><h3 class="text-2xl font-bold text-neon-blue mb-4">CYBERSECURITY</h3><p class="text-gray-400">Protecting your digital assets is our top priority.</p></div>
+        <div class="theme-card-bg rounded-2xl p-6 card-neon-border"><h3 class="text-2xl font-bold text-neon-pink mb-4">NETWORK OPTIMIZATION</h3><p class="text-gray-400">We build custom networking solutions faster and more reliable than traditional systems.</p></div>
+        <div class="theme-card-bg rounded-2xl p-6 card-neon-border"><h3 class="text-2xl font-bold text-neon-blue mb-4">ESCROW CONTRACTS</h3><p class="text-gray-400">Ensure trustless transactions with automated, secure escrow contracts.</p></div>
       </div>
       <button id="services-back-btn" class="modern-button-secondary mt-12">Back to Home</button>
     </div>
@@ -112,7 +116,7 @@
   <section id="sell-tab" class="min-h-screen p-8 hidden-section hidden">
     <div class="max-w-4xl mx-auto">
       <h2 class="text-4xl sm:text-5xl font-bold mb-8 text-center">SELL YOUR GEAR</h2>
-      <div class="bg-gray-800 rounded-2xl p-8 card-neon-border">
+      <div class="theme-card-bg rounded-2xl p-8 card-neon-border">
         <form id="create-listing-form" class="space-y-6">
           <div><label for="product-name" class="block text-xl font-medium mb-2 text-neon-blue">Product Name</label><input type="text" id="product-name" placeholder="Cyberdeck 2077" required class="w-full p-3 rounded-xl auth-input"></div>
           <div><label for="product-desc" class="block text-xl font-medium mb-2 text-neon-blue">Description</label><textarea id="product-desc" rows="4" placeholder="A custom rig for hacking." required class="w-full p-3 rounded-xl auth-input"></textarea></div>
@@ -136,14 +140,14 @@
             <div id="image-uploader" class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
                 <div class="space-y-1 text-center">
                     <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-                    <div class="flex text-sm text-gray-400">
+                    <div class="flex text-sm text-neon-blue">
                         <label for="product-photo" class="relative cursor-pointer rounded-md font-medium text-neon-blue hover:text-neon-pink focus-within:outline-none">
                             <span>Upload a file</span>
                             <input id="product-photo" name="product-photo" type="file" class="sr-only" accept="image/*">
                         </label>
                         <p class="pl-1">or drag and drop</p>
                     </div>
-                    <p class="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
+                    <p class="text-xs text-neon-blue">PNG, JPG up to 5MB</p>
                     <p id="file-name-display" class="text-sm text-neon-blue font-semibold"></p>
                 </div>
             </div>
@@ -224,6 +228,7 @@
   <script src="js/utils.js"></script>
   <script src="js/animations.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/theme.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/marketplace.js"></script>
   <script src="js/cart.js"></script>

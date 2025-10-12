@@ -7,6 +7,12 @@
 .card-neon-border:hover {
   box-shadow: 0 0 15px var(--neon-blue), 0 0 25px var(--neon-blue);
 }
+
+.theme-card-bg {
+    background-color: var(--dark-card);
+    transition: background-color 0.3s ease;
+}
+
 .modern-button {
   padding: 0.75rem 2rem;
   border-radius: 9999px;
@@ -16,7 +22,7 @@
   box-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-pink);
   color: white;
   border: none;
-  display: flex; /* For loader alignment */
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
@@ -56,11 +62,6 @@ hr.neon-hr {
   margin: 4rem 0;
 }
 
-#auth-btn {
-  color: var(--neon-blue);
-  border-color: var(--neon-blue);
-}
-
 /* --- CUSTOM SELECT & FILTERS --- */
 .custom-select-btn {
   background-color: transparent;
@@ -71,7 +72,7 @@ hr.neon-hr {
   text-align: left;
   transition: all 0.3s ease;
 }
-.custom-select-btn.active-filter { /* Style for active filter */
+.custom-select-btn.active-filter {
     background-color: var(--neon-blue);
     color: var(--dark-bg);
     box-shadow: 0 0 10px var(--neon-blue);
@@ -82,22 +83,27 @@ hr.neon-hr {
   margin-top: 0.5rem;
   border-radius: 0.375rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  background-color: #1f2937;
+  background-color: var(--dark-card);
   border: 1px solid var(--neon-blue);
   z-index: 10;
+  transition: background-color 0.3s ease;
 }
 .dropdown-menu a {
   display: block;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  color: #d1d5db;
+  color: var(--text-color);
+  transition: background-color 0.3s ease;
 }
-.dropdown-menu a:hover {
+html[data-theme='dark'] .dropdown-menu a:hover {
   background-color: #374151;
 }
+html[data-theme='light'] .dropdown-menu a:hover {
+  background-color: #e9ecef;
+}
+
 
 /* --- ADDED STYLES --- */
-/* Button Loader */
 .loader {
     width: 18px;
     height: 18px;
@@ -113,16 +119,93 @@ hr.neon-hr {
     100% { transform: rotate(360deg); }
 }
 
-/* Form Error Messages */
 .form-error {
     color: var(--neon-pink);
     font-size: 0.875rem;
     margin-top: 0.25rem;
-    height: 1rem; /* Reserve space to prevent layout shift */
+    height: 1rem;
 }
 
-/* Drag-and-Drop Uploader */
 #image-uploader.drag-over {
     border-color: var(--neon-pink);
     box-shadow: 0 0 15px var(--neon-pink);
+}
+
+.theme-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+.theme-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #2c3e50;
+  transition: .4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+}
+input:checked + .slider {
+  background-color: var(--neon-blue);
+}
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+.slider.round {
+  border-radius: 34px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}
+
+html[data-theme='light'] .text-neon-blue {
+    color: var(--neon-blue);
+}
+
+html[data-theme='light'] #services .text-gray-400,
+html[data-theme='light'] .text-gray-400 {
+    color: #6c757d;
+}
+
+/* ### THIS IS THE CORRECTED SECTION ### */
+html[data-theme='light'] #services .text-neon-pink {
+    color: var(--neon-blue); /* This now makes the text blue */
+}
+
+html[data-theme='light'] .text-neon-pink {
+    color: var(--neon-pink);
+}
+
+html[data-theme='light'] #services .bg-gray-800 {
+    background-color: var(--dark-card);
+}
+
+html[data-theme='light'] .bg-gray-700 {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+html[data-theme='light'] .modern-button {
+    color: white;
+}
+
+html[data-theme='light'] #hero .text-gray-300 {
+    color: var(--text-color);
 }

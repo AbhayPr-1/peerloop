@@ -1,7 +1,8 @@
 // frontend/js/marketplace.js
 function createProductCard(product) {
   const card = document.createElement("div");
-  card.className = "bg-gray-800 rounded-2xl p-6 card-neon-border flex flex-col";
+  // ### THIS LINE IS NOW FIXED ###
+  card.className = "theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col";
   let actionButtons = "";
 
   const sellerId = (typeof product.seller === 'object' && product.seller !== null) ? product.seller._id : product.seller;
@@ -27,11 +28,10 @@ function createProductCard(product) {
       <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
     </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
 
-  // Attach product data to the card for quick view
   card.dataset.product = JSON.stringify(product);
   return card;
 }
-
+// ... rest of the file remains the same
 function attachCardListeners(grid) {
   grid.querySelectorAll(".add-to-cart-btn").forEach(btn => {
     btn.addEventListener("click", e => {
@@ -122,7 +122,6 @@ function filterAndSortProducts() {
   renderProducts(list);
 }
 
-// ### THIS FUNCTION IS NOW FIXED ###
 async function buyNow(productId, buttonElement) {
   if (!currentUser) return showMessage("You must be logged in to purchase.");
   if (buttonElement) setButtonLoading(buttonElement, true, 'Buying...');
@@ -137,14 +136,11 @@ async function buyNow(productId, buttonElement) {
 
     showMessage(`Purchased "${data.product.name}" successfully!`);
     
-    // Update the master product list in the background
     allProducts = allProducts.filter(p => p._id !== productId);
     
-    // **THE FIX**: If a button was clicked, find its parent card and remove it from the view.
     if (buttonElement) {
         buttonElement.closest('.card-neon-border').remove();
     } else {
-        // Fallback for cases where a button isn't passed (like checkout)
         filterAndSortProducts(); 
     }
     

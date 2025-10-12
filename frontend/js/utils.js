@@ -58,7 +58,6 @@ function hideLoadingMessage() {
   msgBox.classList.remove("animate-pulse", "text-neon-blue");
 }
 
-// --- ADDED BUTTON LOADER UTILITIES ---
 function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
     if (isLoading) {
         button.disabled = true;
@@ -70,10 +69,12 @@ function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
     }
 }
 
+// ### THIS FUNCTION IS NOW FIXED ###
 function createProfileProductCard(product, context) {
     const card = document.createElement("div");
-    card.className = "bg-gray-800 rounded-2xl p-6 card-neon-border flex flex-col";
+    card.className = "theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col";
     let contextInfo = '';
+    
     const displayCategory = categoryDisplayMap[product.category] || product.category;
 
     if (context === 'sold' && product.buyer) {
