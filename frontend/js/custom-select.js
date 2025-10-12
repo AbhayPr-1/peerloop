@@ -4,7 +4,7 @@ function initializeCustomSelect(containerId, onChangeCallback) {
     if (!container) return;
 
     const button = container.querySelector('.custom-select-btn');
-    const optionsContainer = container.querySelector('.dropdown-menu'); // Updated class name
+    const optionsContainer = container.querySelector('.dropdown-menu');
     const options = optionsContainer.querySelectorAll('a');
     const displaySpan = button.querySelector('span');
 
@@ -16,13 +16,11 @@ function initializeCustomSelect(containerId, onChangeCallback) {
 
     button.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Close all other open dropdowns first
         document.querySelectorAll('.dropdown-menu').forEach(menu => {
             if (menu !== optionsContainer) {
                 menu.classList.add('hidden');
             }
         });
-        // Then toggle the current one
         optionsContainer.classList.toggle('hidden');
     });
 
@@ -33,6 +31,13 @@ function initializeCustomSelect(containerId, onChangeCallback) {
             displaySpan.textContent = option.textContent;
             optionsContainer.classList.add('hidden');
 
+            // Add/Remove active class for visual feedback
+            if (hiddenInput.value !== 'all' && containerId === 'category-filter') {
+                button.classList.add('active-filter');
+            } else {
+                button.classList.remove('active-filter');
+            }
+
             if (onChangeCallback) {
                 onChangeCallback(hiddenInput.value);
             }
@@ -40,7 +45,6 @@ function initializeCustomSelect(containerId, onChangeCallback) {
     });
 }
 
-// Global listener to close all dropdowns when clicking outside
 document.addEventListener('click', () => {
     document.querySelectorAll('.dropdown-menu').forEach(menu => {
         menu.classList.add('hidden');

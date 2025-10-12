@@ -1,6 +1,4 @@
-// frontend/js/cart.js (FINAL, DATABASE VERSION)
-
-// This variable will hold the cart items in memory to avoid constant fetching
+// frontend/js/cart.js
 let userCart = [];
 
 async function fetchCart() {
@@ -12,23 +10,22 @@ async function fetchCart() {
       headers: { 'x-auth-token': token }
     });
     if (!response.ok) throw new Error('Could not fetch cart');
-    
     userCart = await response.json();
     updateCartCount();
-    
-    // If the cart tab is currently visible, re-render it
     if (!document.getElementById('cart-tab').classList.contains('hidden')) {
       renderCart();
     }
-
   } catch (error) {
     console.error("Fetch Cart Error:", error);
   }
 }
 
-async function addToCart(productId) {
+async function addToCart(productId, buttonElement) {
   if (!currentUser) return showMessage("You must be logged in.");
   const token = localStorage.getItem('token');
+
+  const originalButtonText = buttonElement.innerHTML;
+  buttonElement.disabled = true;
 
   try {
     const response = await fetch(`${API_URL}/api/users/cart/${productId}`, {
@@ -36,30 +33,48 @@ async function addToCart(productId) {
       headers: { 'x-auth-token': token }
     });
     const data = await response.json();
-
     if (!response.ok) throw new Error(data.msg || 'Failed to add item');
-    
-    userCart = data; // Update local cart state
-    const product = allProducts.find(p => p._id === productId);
-    showMessage(`Added ${product.name} to cart`);
+
+    userCart = data;
     updateCartCount();
+
+    // Visual confirmation on button
+    buttonElement.innerHTML = 'Added ✓';
+    buttonElement.classList.add('added-to-cart');
+    setTimeout(() => {
+        buttonElement.innerHTML = originalButtonText;
+        buttonElement.classList.remove('added-to-cart');
+        buttonElement.disabled = false;
+    }, 2000);
 
   } catch (error) {
     showMessage(error.message);
+    buttonElement.innerHTML = originalButtonText;
+    buttonElement.disabled = false;
   }
 }
 
 function renderCart() {
   const cont = document.getElementById('cart-items-container');
   const totalEl = document.getElementById('cart-total');
+  const summaryEl = document.getElementById('cart-summary');
   cont.innerHTML = '';
 
   if (userCart.length === 0) {
-    cont.innerHTML = '<p class="text-center text-gray-500">Your cart is empty.</p>';
-    totalEl.textContent = '0 ETH';
+    // Empty State UI
+    cont.innerHTML = `
+        <div class="text-center p-8 border-2 border-dashed rounded-md">
+            <h3 class="text-2xl font-bold text-gray-400">Your cart is empty.</h3>
+            <p class="text-gray-500 mt-2 mb-6">Looking for something special? Find your next gear in the marketplace.</p>
+            <button id="cart-explore-btn" class="modern-button">Explore Gears</button>
+        </div>
+    `;
+    summaryEl.classList.add('hidden');
+    document.getElementById('cart-explore-btn').addEventListener('click', () => showSection('marketplace'));
     return;
   }
 
+  summaryEl.classList.remove('hidden');
   let total = 0;
   userCart.forEach(item => {
     total += item.price;
@@ -68,9 +83,9 @@ function renderCart() {
     el.innerHTML = `
       <img src="${item.imageUrl}" alt="${item.name}" class="w-16 h-16 object-cover rounded-md">
       <div class="flex-grow">
-        <h4 class="text-lg font-bold text-neon-blue">${item.name}</h4><p>${item.price} ETH</p>
+        <h4 class="text-lg font-bold text-neon-blue">${item.name}</h4><p>${item.price.toFixed(4)} ETH</p>
       </div>
-      <button class="remove-from-cart-btn text-red-500" data-product-id="${item._id}">✖</button>`;
+      <button class="remove-from-cart-btn text-red-500 hover:text-red-400 transition-colors" data-product-id="${item._id}">✖</button>`;
     cont.appendChild(el);
   });
   totalEl.textContent = `${total.toFixed(4)} ETH`;
@@ -82,7 +97,6 @@ function renderCart() {
 async function removeFromCart(productId, showMsg = true) {
   if (!currentUser) return;
   const token = localStorage.getItem('token');
-
   try {
     const response = await fetch(`${API_URL}/api/users/cart/${productId}`, {
       method: 'DELETE',
@@ -90,32 +104,25 @@ async function removeFromCart(productId, showMsg = true) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.msg || 'Failed to remove item');
-
-    userCart = data; // Update local cart state
+    userCart = data;
     if (showMsg) showMessage("Item removed from cart.");
-    renderCart(); // Re-render the cart view
+    renderCart();
     updateCartCount();
-
   } catch (error) {
     showMessage(error.message);
   }
 }
 
-async function checkout() {
+async function checkout(buttonElement) {
   if (userCart.length === 0) return showMessage('Your cart is empty.');
-  
-  // Create a copy of the cart to iterate over, as `buyNow` will modify the underlying data
   const itemsToCheckout = [...userCart];
   
-  showLoadingMessage("Processing your purchases...");
+  setButtonLoading(buttonElement, true, 'Processing...');
   for (const item of itemsToCheckout) {
-    // The `buyNow` function already exists in marketplace.js and handles removing the product
-    await buyNow(item._id);
+    await buyNow(item._id, null);
   }
-  
-  // After all purchases, fetch the (now empty) cart from the server
-  await fetchCart(); 
-  hideLoadingMessage();
+  await fetchCart();
+  setButtonLoading(buttonElement, false);
   showMessage("Checkout complete!");
 }
 

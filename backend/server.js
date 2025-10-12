@@ -7,7 +7,7 @@ const cors = require('cors');
 const app = express();
 
 // --- Middleware ---
-// This line is for allowing connections from other devices
+// THIS IS THE FIX: It allows connections from any device on your network.
 app.use(cors({ origin: '*' }));
 
 app.use(express.json({ limit: '5mb' }));

@@ -29,9 +29,13 @@ function toggleAuthForm() {
         title.textContent = 'Login';
         toggleBtn.textContent = 'Don\'t have an account? Sign up';
     }
+    // Clear any previous error messages when toggling
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
 }
 
-async function handleLogin(identifier, password) {
+
+async function handleLogin(identifier, password, buttonElement) {
+  setButtonLoading(buttonElement, true, 'Logging in...');
   try {
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
@@ -52,10 +56,15 @@ async function handleLogin(identifier, password) {
     filterAndSortProducts();
   } catch (error) {
     showMessage(error.message);
+  } finally {
+    setButtonLoading(buttonElement, false);
   }
 }
 
-async function handleSignup(name, email, password) {
+async function handleSignup(name, email, password, buttonElement) {
+    // Clear previous errors
+    document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    setButtonLoading(buttonElement, true, 'Signing up...');
     try {
         const response = await fetch(`${API_URL}/api/auth/register`, {
             method: 'POST',
@@ -64,19 +73,29 @@ async function handleSignup(name, email, password) {
         });
         const data = await response.json();
         if (!response.ok) {
-            const errorMsg = data.errors ? data.errors[0].msg : data.msg;
-            throw new Error(errorMsg || 'Signup failed');
+            // Handle inline validation errors
+            if (data.errors) {
+                data.errors.forEach(err => {
+                    const errorEl = document.getElementById(`signup-${err.path}-error`);
+                    if (errorEl) errorEl.textContent = err.msg;
+                });
+            }
+            const generalError = data.errors ? 'Please correct the errors above.' : data.msg;
+            throw new Error(generalError || 'Signup failed');
         }
-        await handleLogin(email, password);
+        await handleLogin(email, password, buttonElement);
     } catch (error) {
         showMessage(error.message);
+    } finally {
+        setButtonLoading(buttonElement, false);
     }
 }
 
-async function handleMetaMaskLogin() {
+async function handleMetaMaskLogin(buttonElement) {
     if (typeof window.ethereum === 'undefined') {
         return showMessage('MetaMask is not installed!');
     }
+    setButtonLoading(buttonElement, true, 'Connecting...');
     try {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const walletAddress = accounts[0];
@@ -100,5 +119,7 @@ async function handleMetaMaskLogin() {
         filterAndSortProducts();
     } catch (error) {
         showMessage(error.message);
+    } finally {
+        setButtonLoading(buttonElement, false);
     }
 }

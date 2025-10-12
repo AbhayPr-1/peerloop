@@ -1,6 +1,4 @@
 // frontend/js/utils.js
-
-// This line creates the API_URL variable correctly and dynamically.
 const API_URL = `http://${window.location.hostname}:5000`;
 
 let currentUser = null;
@@ -60,11 +58,22 @@ function hideLoadingMessage() {
   msgBox.classList.remove("animate-pulse", "text-neon-blue");
 }
 
+// --- ADDED BUTTON LOADER UTILITIES ---
+function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
+    if (isLoading) {
+        button.disabled = true;
+        button.dataset.originalText = button.innerHTML;
+        button.innerHTML = `<span class="loader"></span> ${loadingText}`;
+    } else {
+        button.disabled = false;
+        button.innerHTML = button.dataset.originalText;
+    }
+}
+
 function createProfileProductCard(product, context) {
     const card = document.createElement("div");
     card.className = "bg-gray-800 rounded-2xl p-6 card-neon-border flex flex-col";
     let contextInfo = '';
-
     const displayCategory = categoryDisplayMap[product.category] || product.category;
 
     if (context === 'sold' && product.buyer) {

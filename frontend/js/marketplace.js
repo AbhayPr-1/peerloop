@@ -16,7 +16,7 @@ function createProductCard(product) {
   }
 
   card.innerHTML = `
-    <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4">
+    <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4 cursor-pointer quick-view-trigger">
     <h3 class="text-2xl font-bold text-neon-blue mb-2">${product.name}</h3>
     <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
     <div class="text-sm mb-2">
@@ -26,14 +26,18 @@ function createProductCard(product) {
       <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
       <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
     </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
+
+  // Attach product data to the card for quick view
+  card.dataset.product = JSON.stringify(product);
   return card;
 }
 
 function attachCardListeners(grid) {
   grid.querySelectorAll(".add-to-cart-btn").forEach(btn => {
     btn.addEventListener("click", e => {
+      e.stopPropagation(); // Prevent card click
       if (currentUser) {
-        addToCart(e.currentTarget.dataset.id);
+        addToCart(e.currentTarget.dataset.id, e.currentTarget);
       } else {
         showMessage('Please log in to add items to your cart.');
         showAuthModal();
@@ -43,10 +47,9 @@ function attachCardListeners(grid) {
 
   grid.querySelectorAll(".buy-now-btn").forEach(btn => {
     btn.addEventListener("click", e => {
+      e.stopPropagation(); // Prevent card click
       if (currentUser) {
-        const card = e.currentTarget.closest('.card-neon-border');
-        const productName = card.querySelector('h3').textContent;
-        buyNow(e.currentTarget.dataset.id, e, productName);
+        buyNow(e.currentTarget.dataset.id, e.currentTarget);
       } else {
         showMessage('Please log in to purchase an item.');
         showAuthModal();
@@ -57,9 +60,18 @@ function attachCardListeners(grid) {
   grid.querySelectorAll(".seller-link").forEach(link => {
     link.addEventListener("click", e => {
       e.preventDefault();
+      e.stopPropagation(); // Prevent card click
       const sellerId = e.currentTarget.dataset.sellerId;
       const sellerName = e.currentTarget.dataset.sellerName;
       renderSellerProfile(sellerId, sellerName);
+    });
+  });
+
+  // Listener for Quick View
+  grid.querySelectorAll('.quick-view-trigger').forEach(trigger => {
+    trigger.addEventListener('click', e => {
+        const productData = JSON.parse(e.currentTarget.closest('.card-neon-border').dataset.product);
+        showQuickView(productData);
     });
   });
 }
@@ -110,9 +122,11 @@ function filterAndSortProducts() {
   renderProducts(list);
 }
 
-async function buyNow(productId, event, productName) { 
+// ### THIS FUNCTION IS NOW FIXED ###
+async function buyNow(productId, buttonElement) {
   if (!currentUser) return showMessage("You must be logged in to purchase.");
-  
+  if (buttonElement) setButtonLoading(buttonElement, true, 'Buying...');
+
   try {
     const response = await fetch(`${API_URL}/api/products/${productId}/buy`, {
       method: 'POST',
@@ -121,17 +135,23 @@ async function buyNow(productId, event, productName) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.msg || 'Purchase failed');
 
-    const name = productName || "the item";
-    showMessage(`Purchased "${name}" successfully!`);
-
+    showMessage(`Purchased "${data.product.name}" successfully!`);
+    
+    // Update the master product list in the background
     allProducts = allProducts.filter(p => p._id !== productId);
     
-    if (event) {
-        event.target.closest('.card-neon-border').remove();
+    // **THE FIX**: If a button was clicked, find its parent card and remove it from the view.
+    if (buttonElement) {
+        buttonElement.closest('.card-neon-border').remove();
     } else {
-        filterAndSortProducts();
+        // Fallback for cases where a button isn't passed (like checkout)
+        filterAndSortProducts(); 
     }
     
     removeFromCart(productId, false);
-  } catch(error) { showMessage(error.message); }
+  } catch(error) {
+    showMessage(error.message);
+  } finally {
+    if (buttonElement) setButtonLoading(buttonElement, false);
+  }
 }

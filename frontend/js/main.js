@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthState();
   renderUI();
   fetchProducts();
+  
+  showSection('hero');
 
   initializeCustomSelect('category-filter', filterAndSortProducts);
   initializeCustomSelect('product-category');
@@ -10,35 +12,35 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- Nav & Page Event Listeners ---
-document.getElementById('nav-home-btn').addEventListener('click', () => {
-  const allSections = ["marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab", "seller-profile-tab"];
-  allSections.forEach(id => document.getElementById(id)?.classList.add('hidden'));
-  document.getElementById('hero').classList.remove('hidden');
-  document.getElementById('services').classList.remove('hidden');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+document.getElementById('nav-home-btn').addEventListener('click', () => showSection('hero'));
+document.getElementById('hero-explore-btn').addEventListener('click', () => showSection('marketplace'));
+document.getElementById('nav-explore-btn').addEventListener('click', () => showSection('marketplace'));
+
+document.getElementById('nav-about-btn').addEventListener('click', () => {
+    document.getElementById('services').scrollIntoView({ behavior: 'smooth' });
 });
 
-document.getElementById('nav-explore-btn').addEventListener('click', () => {
-  showSection('marketplace');
-  filterAndSortProducts();
-});
+// ### NEW LISTENER FOR "BACK TO HOME" BUTTON ###
+document.getElementById('services-back-btn').addEventListener('click', () => showSection('hero'));
 
-document.getElementById('nav-sell-btn').addEventListener('click', () => currentUser ? showSection('sell-tab') : showMessage('Login to sell'));
-document.getElementById('nav-cart-btn').addEventListener('click', () => currentUser ? (showSection('cart-tab'), renderCart()) : showMessage('Login to view cart'));
-document.getElementById('checkout-btn').addEventListener('click', checkout);
+document.getElementById('nav-sell-btn').addEventListener('click', () => currentUser ? showSection('sell-tab') : showAuthModal());
+document.getElementById('hero-sell-btn').addEventListener('click', () => currentUser ? showSection('sell-tab') : showAuthModal());
+document.getElementById('nav-cart-btn').addEventListener('click', () => currentUser ? (showSection('cart-tab'), renderCart()) : showAuthModal());
+document.getElementById('checkout-btn').addEventListener('click', e => checkout(e.currentTarget));
 
+// ... rest of the file remains the same ...
 // --- Auth Modal & Form Event Listeners ---
 document.getElementById('close-modal-btn').addEventListener('click', closeAuthModal);
 document.getElementById('toggle-form-btn').addEventListener('click', toggleAuthForm);
 document.getElementById('login-form').addEventListener('submit', e => {
   e.preventDefault();
-  handleLogin(document.getElementById('login-identifier').value, document.getElementById('login-password').value);
+  handleLogin(document.getElementById('login-identifier').value, document.getElementById('login-password').value, e.submitter);
 });
 document.getElementById('signup-form').addEventListener('submit', e => {
   e.preventDefault();
-  handleSignup(document.getElementById('signup-name').value, document.getElementById('signup-email').value, document.getElementById('signup-password').value);
+  handleSignup(document.getElementById('signup-name').value, document.getElementById('signup-email').value, document.getElementById('signup-password').value, e.submitter);
 });
-document.getElementById("metamask-login-btn").addEventListener("click", handleMetaMaskLogin);
+document.getElementById("metamask-login-btn").addEventListener("click", e => handleMetaMaskLogin(e.currentTarget));
 
 // --- Profile Dropdown Event Listeners ---
 document.getElementById('profile-dropdown-btn').addEventListener('click', (e) => {
@@ -57,26 +59,47 @@ document.getElementById('nav-purchased-btn').addEventListener('click', () => ren
 // --- Marketplace Filter Event Listeners ---
 document.getElementById('search-input').addEventListener('input', filterAndSortProducts);
 
-// --- Sell Form Event Listeners ---
-document.getElementById('product-photo').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (file) {
-    if (!file.type.startsWith("image/")) { showMessage("Invalid file type."); e.target.value = ""; return; }
-    if (file.size > 5 * 1024 * 1024) { showMessage("Image too large (Max 5MB)."); e.target.value = ""; return; }
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const preview = document.getElementById('image-preview');
-      preview.src = ev.target.result;
-      preview.classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
-  }
+// --- Sell Form & Image Uploader Event Listeners ---
+const uploader = document.getElementById('image-uploader');
+const fileInput = document.getElementById('product-photo');
+const fileNameDisplay = document.getElementById('file-name-display');
+
+uploader.addEventListener('click', () => fileInput.click());
+uploader.addEventListener('dragover', e => { e.preventDefault(); uploader.classList.add('drag-over'); });
+uploader.addEventListener('dragleave', () => uploader.classList.remove('drag-over'));
+uploader.addEventListener('drop', e => {
+    e.preventDefault();
+    uploader.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileInput.files = files;
+        handleFileChange(files[0]);
+    }
 });
+fileInput.addEventListener('change', () => handleFileChange(fileInput.files[0]));
+
+function handleFileChange(file) {
+    if (file) {
+        if (!file.type.startsWith("image/")) { showMessage("Invalid file type."); fileInput.value = ""; return; }
+        if (file.size > 5 * 1024 * 1024) { showMessage("Image too large (Max 5MB)."); fileInput.value = ""; return; }
+        fileNameDisplay.textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const preview = document.getElementById('image-preview');
+            preview.src = ev.target.result;
+            preview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+}
 
 document.getElementById("create-listing-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return showMessage("You must be logged in.");
 
+  const buttonElement = e.submitter;
+  setButtonLoading(buttonElement, true, 'Creating...');
+  
   const token = localStorage.getItem('token');
   const name = document.getElementById("product-name").value.trim();
   const description = document.getElementById("product-desc").value.trim();
@@ -85,10 +108,9 @@ document.getElementById("create-listing-form").addEventListener("submit", async 
   const file = document.getElementById("product-photo").files[0];
 
   if (!name || !description || !price || !category || !file) {
+    setButtonLoading(buttonElement, false);
     return showMessage("Please fill all fields and upload an image.");
   }
-
-  showLoadingMessage("Creating listing...");
 
   const reader = new FileReader();
   reader.readAsDataURL(file);
@@ -100,31 +122,30 @@ document.getElementById("create-listing-form").addEventListener("submit", async 
         headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
         body: JSON.stringify({ name, description, price, category, imageUrl })
       });
-
       const newProduct = await response.json();
       if (!response.ok) {
         const errorMsg = newProduct.errors ? newProduct.errors[0].msg : (newProduct.msg || 'Failed to create listing');
         throw new Error(errorMsg);
       }
-
-      hideLoadingMessage();
+      
       showMessage("Product listed successfully!");
       document.getElementById("create-listing-form").reset();
       document.getElementById("image-preview").classList.add("hidden");
+      fileNameDisplay.textContent = '';
       document.querySelector("#product-category .custom-select-btn span").textContent = 'Electronics';
 
       newProduct.seller = { _id: currentUser.id, name: currentUser.name };
-
       allProducts.unshift(newProduct);
       filterAndSortProducts();
       showSection('marketplace');
-    } catch(error) {
-      hideLoadingMessage();
-      showMessage(error.message);
+    } catch(error) { 
+      showMessage(error.message); 
+    } finally {
+      setButtonLoading(buttonElement, false);
     }
   };
   reader.onerror = () => {
-      hideLoadingMessage();
+      setButtonLoading(buttonElement, false);
       showMessage("Could not read the image file.");
   };
 });
@@ -133,25 +154,15 @@ document.getElementById("create-listing-form").addEventListener("submit", async 
 async function renderProfileSection(type) {
   document.getElementById('profile-dropdown-menu').classList.add('hidden');
   if (!currentUser) return;
-
   const endpoints = {
-    listings: '/api/users/me/listings',
-    sold: '/api/users/me/sold',
-    purchased: '/api/users/me/purchased'
+    listings: '/api/users/me/listings', sold: '/api/users/me/sold', purchased: '/api/users/me/purchased'
   };
-
   const gridIds = {
-    listings: 'my-listings-grid',
-    sold: 'sold-history-grid',
-    purchased: 'purchase-history-grid'
+    listings: 'my-listings-grid', sold: 'sold-history-grid', purchased: 'purchase-history-grid'
   };
-
   const sectionIds = {
-    listings: 'my-listings-tab',
-    sold: 'sold-history-tab',
-    purchased: 'purchase-history-tab'
+    listings: 'my-listings-tab', sold: 'sold-history-tab', purchased: 'purchase-history-tab'
   };
-
   const grid = document.getElementById(gridIds[type]);
   showSection(sectionIds[type]);
 
@@ -167,17 +178,27 @@ async function renderProfileSection(type) {
     });
     if (!response.ok) throw new Error('Could not fetch data.');
     const products = await response.json();
-
+    
     grid.innerHTML = '';
     if (products.length === 0) {
-      grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No products found in this section.</p>`;
+      if (type === 'listings') {
+        grid.innerHTML = `
+          <div class="text-center p-8 border-2 border-dashed rounded-md col-span-full">
+              <h3 class="text-2xl font-bold text-gray-400">You have no active listings.</h3>
+              <p class="text-gray-500 mt-2 mb-6">Ready to give your old gear a new life?</p>
+              <button id="listings-sell-btn" class="modern-button">Sell Your First Gear</button>
+          </div>
+        `;
+        document.getElementById('listings-sell-btn').addEventListener('click', () => showSection('sell-tab'));
+      } else {
+        grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No products found in this section.</p>`;
+      }
       return;
     }
 
     products.forEach(product => {
       grid.appendChild(createProfileProductCard(product, type));
     });
-
   } catch (error) {
     grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
   }
@@ -187,7 +208,6 @@ async function renderProfileSection(type) {
 async function renderSellerProfile(sellerId, sellerName) {
   const heading = document.getElementById('seller-profile-heading');
   const grid = document.getElementById('seller-profile-grid');
-
   heading.textContent = `${sellerName}'s Gears`;
   showSection('seller-profile-tab');
 
@@ -200,7 +220,6 @@ async function renderSellerProfile(sellerId, sellerName) {
   try {
     const response = await fetch(`${API_URL}/api/users/${sellerId}/products`);
     if (!response.ok) throw new Error('Could not fetch seller profile.');
-
     const data = await response.json();
     const products = data.products;
 
@@ -209,13 +228,8 @@ async function renderSellerProfile(sellerId, sellerName) {
       grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">This seller has no active listings.</p>`;
       return;
     }
-
-    products.forEach(product => {
-      grid.appendChild(createProductCard(product));
-    });
-
+    products.forEach(product => grid.appendChild(createProductCard(product)));
     attachCardListeners(grid);
-
   } catch (error) {
     grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
   }
