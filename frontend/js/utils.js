@@ -1,8 +1,10 @@
 // frontend/js/utils.js
+
+// This line creates the API_URL variable correctly and dynamically.
+const API_URL = `http://${window.location.hostname}:5000`;
+
 let currentUser = null;
 let allProducts = [];
-// This is the corrected line. We hardcode the URL for your local environment.
-const API_URL = 'http://localhost:5000';
 
 const categoryDisplayMap = {
     'electronics': 'Electronics',
