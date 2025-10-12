@@ -81,7 +81,7 @@ router.get('/me/listings', auth, async (req, res) => {
 router.get('/me/sold', auth, async (req, res) => {
     try {
         const products = await Product.find({ seller: req.user.id, status: 'sold' })
-            .populate('buyer', 'name') // Get the buyer's name
+            .populate('buyer', 'name')
             .sort({ createdAt: -1 });
         res.json(products);
     } catch (err) {
@@ -93,12 +93,39 @@ router.get('/me/sold', auth, async (req, res) => {
 router.get('/me/purchased', auth, async (req, res) => {
     try {
         const products = await Product.find({ buyer: req.user.id, status: 'sold' })
-            .populate('seller', 'name') // Get the seller's name
+            .populate('seller', 'name')
             .sort({ createdAt: -1 });
         res.json(products);
     } catch (err) {
         res.status(500).send('Server Error');
     }
+});
+
+// --- GET SELLER PROFILE AND PRODUCTS ---
+router.get('/:userId/products', async (req, res) => {
+  try {
+    // Find the seller by their ID to get their name
+    const seller = await User.findById(req.params.userId).select('name');
+    if (!seller) {
+      return res.status(404).json({ msg: 'Seller not found' });
+    }
+
+    // Find all products listed by that seller that are still for sale
+    const products = await Product.find({ seller: req.params.userId, status: 'for-sale' })
+        .populate('seller', 'name') // Keep populating for consistency on the product card
+        .sort({ createdAt: -1 });
+
+    // Return both the seller's info and their products
+    res.json({ seller, products });
+
+  } catch (err) {
+    console.error(err.message);
+    // Handle potential invalid ObjectId errors
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Seller not found' });
+    }
+    res.status(500).send('Server Error');
+  }
 });
 
 module.exports = router;

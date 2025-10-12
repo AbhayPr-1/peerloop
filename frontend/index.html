@@ -127,7 +127,12 @@
             </div>
           </div>
           
-          <div><label for="product-photo" class="block text-xl font-medium mb-2 text-neon-blue">Product Image</label><input type="file" id="product-photo" accept="image/*" required class="w-full p-3 rounded-xl auth-input"><img id="image-preview" src="#" alt="Image Preview" class="mt-4 hidden w-full h-auto object-cover rounded-xl" /></div>
+          <div>
+            <label for="product-photo" class="block text-xl font-medium mb-2 text-neon-blue">Product Image</label>
+            <input type="file" id="product-photo" accept="image/*" required class="w-full p-3 rounded-xl auth-input">
+            <img id="image-preview" src="#" alt="Image Preview" class="mt-4 hidden w-full h-auto object-cover rounded-xl" />
+          </div>
+
           <button type="submit" class="w-full modern-button text-lg">Create Listing</button>
         </form>
       </div>
@@ -155,6 +160,14 @@
 
   <section id="purchase-history-tab" class="min-h-screen p-8 hidden-section hidden">
     <div class="max-w-7xl mx-auto"><h2 class="text-4xl sm:text-5xl font-bold mb-8 text-center">Purchase History</h2><div id="purchase-history-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"></div></div>
+  </section>
+
+  <section id="seller-profile-tab" class="min-h-screen p-8 hidden-section hidden">
+    <div class="max-w-7xl mx-auto">
+      <h2 id="seller-profile-heading" class="text-4xl sm:text-5xl font-bold mb-8 text-center"></h2>
+      <div id="seller-profile-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      </div>
+    </div>
   </section>
 
 <div id="auth-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">

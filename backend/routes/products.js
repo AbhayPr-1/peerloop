@@ -1,12 +1,12 @@
 // backend/routes/products.js
 const express = require('express');
 const router = express.Router();
-const { body, validationResult } = require('express-validator'); // Import validator functions
+const { body, validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
 
-// Get all products (that are for sale)
+// Get all products
 router.get('/', async (req, res) => {
   try {
     const products = await Product.find({ status: 'for-sale' })
@@ -19,14 +19,12 @@ router.get('/', async (req, res) => {
 // Create a new product
 router.post('/', [
   auth,
-  // --- VALIDATION RULES ---
   body('name', 'Product name is required').not().isEmpty().trim().escape(),
   body('description', 'Description is required').not().isEmpty().trim().escape(),
   body('price', 'Price must be a positive number').isFloat({ gt: 0 }),
   body('category', 'A valid category is required').isIn(['electronics', 'wearables', 'cybernetics', 'data']),
   body('imageUrl', 'Image is required').not().isEmpty()
 ], async (req, res) => {
-  // --- VALIDATION CHECK ---
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
@@ -52,10 +50,7 @@ router.post('/:id/buy', auth, async (req, res) => {
     product.buyer = req.user.id;
     await product.save();
 
-    await User.updateMany(
-        { cart: req.params.id },
-        { $pull: { cart: req.params.id } }
-    );
+    await User.updateMany({ cart: req.params.id }, { $pull: { cart: req.params.id } });
 
     res.json({ msg: 'Product purchased successfully', product });
   } catch (err) { 

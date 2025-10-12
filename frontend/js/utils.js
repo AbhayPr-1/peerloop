@@ -3,6 +3,13 @@ let currentUser = null;
 let allProducts = [];
 const API_URL = 'http://localhost:5000';
 
+const categoryDisplayMap = {
+    'electronics': 'Electronics',
+    'wearables': 'Wearables',
+    'cybernetics': 'Cybernetics',
+    'data': 'Data & Software'
+};
+
 function checkAuthState() {
   const token = localStorage.getItem('token');
   if (token) {
@@ -24,8 +31,6 @@ function logout() {
   localStorage.removeItem('username');
   currentUser = null;
   renderUI();
-  // --- ADDED THIS LINE ---
-  // This re-renders the product grid in the background with the new "guest" state.
   filterAndSortProducts(); 
   showMessage("You have been logged out.");
   showSection("hero");
@@ -56,6 +61,8 @@ function createProfileProductCard(product, context) {
     const card = document.createElement("div");
     card.className = "bg-gray-800 rounded-2xl p-6 card-neon-border flex flex-col";
     let contextInfo = '';
+    
+    const displayCategory = categoryDisplayMap[product.category] || product.category;
 
     if (context === 'sold' && product.buyer) {
         contextInfo = `<p class="text-sm text-green-400 mb-2">Sold to: ${product.buyer.name}</p>`;
@@ -72,7 +79,7 @@ function createProfileProductCard(product, context) {
         <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
         <div class="flex items-center justify-between">
             <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-            <span class="text-xs px-2 py-1 rounded bg-gray-700">${product.category}</span>
+            <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
         </div>
     `;
     return card;

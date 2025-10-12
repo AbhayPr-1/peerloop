@@ -6,10 +6,8 @@ function createProductCard(product) {
 
   const sellerId = (typeof product.seller === 'object' && product.seller !== null) ? product.seller._id : product.seller;
   const sellerName = (typeof product.seller === 'object' && product.seller !== null) ? product.seller.name : 'Your new listing';
+  const displayCategory = categoryDisplayMap[product.category] || product.category;
 
-  // --- MODIFIED LOGIC ---
-  // Buttons are now shown if the user is a guest OR if the logged-in user is not the seller.
-  // The only time buttons are hidden is if the logged-in user is the seller.
   if (!currentUser || (currentUser && currentUser.id !== sellerId)) {
     actionButtons = `
       <button class="modern-button-secondary add-to-cart-btn" data-id="${product._id}">Add to Cart</button>
@@ -21,25 +19,17 @@ function createProductCard(product) {
     <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4">
     <h3 class="text-2xl font-bold text-neon-blue mb-2">${product.name}</h3>
     <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
-    <div class="text-sm text-gray-500 mb-2">Seller: ${sellerName}</div>
+    <div class="text-sm mb-2">
+      Seller: <a href="#" class="seller-link text-neon-blue hover:underline" data-seller-id="${sellerId}" data-seller-name="${sellerName}">${sellerName}</a>
+    </div>
     <div class="flex items-center justify-between mb-4">
       <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-      <span class="text-xs px-2 py-1 rounded bg-gray-700">${product.category}</span>
+      <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
     </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
   return card;
 }
 
-function renderProducts(list) {
-  const grid = document.getElementById("product-grid");
-  grid.innerHTML = "";
-  if (!list.length) {
-    grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No products match your filters.</p>`;
-    return;
-  }
-  list.forEach(p => grid.appendChild(createProductCard(p)));
-
-  // --- MODIFIED LOGIC ---
-  // Event listeners now check for a logged-in user before acting.
+function attachCardListeners(grid) {
   grid.querySelectorAll(".add-to-cart-btn").forEach(btn => {
     btn.addEventListener("click", e => {
       if (currentUser) {
@@ -54,27 +44,42 @@ function renderProducts(list) {
   grid.querySelectorAll(".buy-now-btn").forEach(btn => {
     btn.addEventListener("click", e => {
       if (currentUser) {
-        buyNow(e.currentTarget.dataset.id);
+        const card = e.currentTarget.closest('.card-neon-border');
+        const productName = card.querySelector('h3').textContent;
+        buyNow(e.currentTarget.dataset.id, e, productName);
       } else {
         showMessage('Please log in to purchase an item.');
         showAuthModal();
       }
     });
   });
+
+  grid.querySelectorAll(".seller-link").forEach(link => {
+    link.addEventListener("click", e => {
+      e.preventDefault();
+      const sellerId = e.currentTarget.dataset.sellerId;
+      const sellerName = e.currentTarget.dataset.sellerName;
+      renderSellerProfile(sellerId, sellerName);
+    });
+  });
+}
+
+function renderProducts(list) {
+  const grid = document.getElementById("product-grid");
+  grid.innerHTML = "";
+  if (!list.length) {
+    grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No products match your filters.</p>`;
+    return;
+  }
+  list.forEach(p => grid.appendChild(createProductCard(p)));
+  attachCardListeners(grid);
 }
 
 async function fetchProducts() {
     const grid = document.getElementById("product-grid");
     let skeletonHTML = '';
     for (let i = 0; i < 6; i++) {
-        skeletonHTML += `
-            <div class="skeleton-card">
-                <div class="skeleton-image"></div>
-                <div class="skeleton-line"></div>
-                <div class="skeleton-line short"></div>
-                <div class="skeleton-line x-short"></div>
-            </div>
-        `;
+        skeletonHTML += `<div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>`;
     }
     grid.innerHTML = skeletonHTML;
 
@@ -105,14 +110,9 @@ function filterAndSortProducts() {
   renderProducts(list);
 }
 
-async function buyNow(productId) {
+async function buyNow(productId, event, productName) { 
   if (!currentUser) return showMessage("You must be logged in to purchase.");
-  const product = allProducts.find(p => p._id === productId);
-  if (!product) return showMessage("Product not found.");
-
-  const sellerId = (typeof product.seller === 'object' && product.seller !== null) ? product.seller._id : product.seller;
-  if (sellerId === currentUser.id) return showMessage("You cannot buy your own listing.");
-
+  
   try {
     const response = await fetch(`${API_URL}/api/products/${productId}/buy`, {
       method: 'POST',
@@ -120,9 +120,18 @@ async function buyNow(productId) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.msg || 'Purchase failed');
-    showMessage(`Purchased "${product.name}" successfully!`);
+
+    const name = productName || "the item";
+    showMessage(`Purchased "${name}" successfully!`);
+
     allProducts = allProducts.filter(p => p._id !== productId);
-    filterAndSortProducts();
+    
+    if (event) {
+        event.target.closest('.card-neon-border').remove();
+    } else {
+        filterAndSortProducts();
+    }
+    
     removeFromCart(productId, false);
   } catch(error) { showMessage(error.message); }
 }

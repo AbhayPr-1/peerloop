@@ -1,7 +1,7 @@
 // frontend/js/ui.js
 function showSection(sectionId) {
-  // Add the new profile sections to the array
-  const sections = ["hero", "services", "marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab"];
+  // Add 'seller-profile-tab' to the array
+  const sections = ["hero", "services", "marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab", "seller-profile-tab"];
   sections.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;

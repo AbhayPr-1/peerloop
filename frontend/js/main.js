@@ -11,19 +11,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Nav & Page Event Listeners ---
 document.getElementById('nav-home-btn').addEventListener('click', () => {
-  // Manually hide all other primary sections
-  const allSections = ["marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab"];
+  const allSections = ["marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab", "seller-profile-tab"];
   allSections.forEach(id => document.getElementById(id)?.classList.add('hidden'));
-
-  // Manually ensure the two home sections are visible
   document.getElementById('hero').classList.remove('hidden');
   document.getElementById('services').classList.remove('hidden');
-
-  // Scroll to the top of the page
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-document.getElementById('nav-explore-btn').addEventListener('click', () => showSection('marketplace'));
+// MODIFIED: This now re-renders the products every time you click "Explore Gears"
+document.getElementById('nav-explore-btn').addEventListener('click', () => {
+  showSection('marketplace');
+  filterAndSortProducts(); // This forces a redraw with the latest data
+});
+
 document.getElementById('nav-sell-btn').addEventListener('click', () => currentUser ? showSection('sell-tab') : showMessage('Login to sell'));
 document.getElementById('nav-cart-btn').addEventListener('click', () => currentUser ? (showSection('cart-tab'), renderCart()) : showMessage('Login to view cart'));
 document.getElementById('checkout-btn').addEventListener('click', checkout);
@@ -77,13 +77,19 @@ document.getElementById('product-photo').addEventListener('change', e => {
 document.getElementById("create-listing-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return showMessage("You must be logged in.");
+  
   const token = localStorage.getItem('token');
   const name = document.getElementById("product-name").value.trim();
   const description = document.getElementById("product-desc").value.trim();
   const price = parseFloat(document.getElementById("product-price").value);
   const category = document.querySelector("#product-category input[type='hidden']").value;
   const file = document.getElementById("product-photo").files[0];
-  if (!name || !description || !price || !category || !file) return showMessage("Please fill all fields and upload an image.");
+
+  if (!name || !description || !price || !category || !file) {
+    return showMessage("Please fill all fields and upload an image.");
+  }
+
+  showLoadingMessage("Creating listing...");
 
   const reader = new FileReader();
   reader.readAsDataURL(file);
@@ -95,18 +101,33 @@ document.getElementById("create-listing-form").addEventListener("submit", async 
         headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
         body: JSON.stringify({ name, description, price, category, imageUrl })
       });
+      
       const newProduct = await response.json();
-      if (!response.ok) throw new Error(newProduct.msg || 'Failed to create listing');
+      if (!response.ok) {
+        const errorMsg = newProduct.errors ? newProduct.errors[0].msg : (newProduct.msg || 'Failed to create listing');
+        throw new Error(errorMsg);
+      }
+      
+      hideLoadingMessage();
       showMessage("Product listed successfully!");
       document.getElementById("create-listing-form").reset();
       document.getElementById("image-preview").classList.add("hidden");
       document.querySelector("#product-category .custom-select-btn span").textContent = 'Electronics';
+
+      newProduct.seller = { _id: currentUser.id, name: currentUser.name };
+      
       allProducts.unshift(newProduct);
       filterAndSortProducts();
       showSection('marketplace');
-    } catch(error) { showMessage(error.message); }
+    } catch(error) { 
+      hideLoadingMessage();
+      showMessage(error.message); 
+    }
   };
-  reader.onerror = () => showMessage("Could not read the image file.");
+  reader.onerror = () => {
+      hideLoadingMessage();
+      showMessage("Could not read the image file.");
+  };
 });
 
 // --- PROFILE RENDERING FUNCTION ---
@@ -137,14 +158,7 @@ async function renderProfileSection(type) {
 
   let skeletonHTML = '';
   for (let i = 0; i < 3; i++) {
-      skeletonHTML += `
-          <div class="skeleton-card">
-              <div class="skeleton-image"></div>
-              <div class="skeleton-line"></div>
-              <div class="skeleton-line short"></div>
-              <div class="skeleton-line x-short"></div>
-          </div>
-      `;
+      skeletonHTML += `<div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>`;
   }
   grid.innerHTML = skeletonHTML;
 
@@ -186,4 +200,42 @@ function filterAndSortProducts() {
     default: list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); break;
   }
   renderProducts(list);
+}
+
+// --- SELLER PROFILE RENDERING FUNCTION ---
+async function renderSellerProfile(sellerId, sellerName) {
+  const heading = document.getElementById('seller-profile-heading');
+  const grid = document.getElementById('seller-profile-grid');
+
+  heading.textContent = `${sellerName}'s Gears`;
+  showSection('seller-profile-tab');
+
+  let skeletonHTML = '';
+  for (let i = 0; i < 3; i++) {
+    skeletonHTML += `<div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>`;
+  }
+  grid.innerHTML = skeletonHTML;
+
+  try {
+    const response = await fetch(`${API_URL}/api/users/${sellerId}/products`);
+    if (!response.ok) throw new Error('Could not fetch seller profile.');
+    
+    const data = await response.json();
+    const products = data.products;
+
+    grid.innerHTML = '';
+    if (products.length === 0) {
+      grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">This seller has no active listings.</p>`;
+      return;
+    }
+
+    products.forEach(product => {
+      grid.appendChild(createProductCard(product));
+    });
+    
+    attachCardListeners(grid);
+    
+  } catch (error) {
+    grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
+  }
 }
