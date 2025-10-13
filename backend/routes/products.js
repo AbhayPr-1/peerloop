@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const mongoose = require('mongoose'); // Import mongoose for transactions
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
@@ -38,6 +38,10 @@ router.post('/', [
   try {
     const newProduct = new Product({ name, description, price, category, imageUrl, seller: req.user.id });
     const product = await newProduct.save();
+    
+    // **EMIT EVENT**: Tell all clients a new product was added
+    req.io.emit('product_added', product);
+    
     res.json(product);
   } catch (err) {
     console.error(err.message);
@@ -45,7 +49,7 @@ router.post('/', [
   }
 });
 
-// "BUY" ROUTE - UPDATED WITH ATOMIC TRANSACTION
+// "BUY" ROUTE
 router.post('/:id/buy', auth, async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -71,17 +75,19 @@ router.post('/:id/buy', auth, async (req, res) => {
     product.buyer = req.user.id;
     await product.save({ session });
 
-    // Remove the product from any user's cart
     await User.updateMany({ cart: req.params.id }, { $pull: { cart: req.params.id } }).session(session);
 
     await session.commitTransaction();
     session.endSession();
 
+    // **EMIT EVENT**: Tell all clients a product was sold
+    req.io.emit('product_sold', { productId: req.params.id });
+
     res.json({ msg: 'Product purchased successfully', product });
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
-    console.error("Transaction Error:", err.message); // Enhanced logging
+    console.error("Transaction Error:", err.message);
     res.status(500).send('Server Error');
   }
 });

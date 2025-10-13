@@ -1,5 +1,31 @@
 // frontend/js/main.js
 document.addEventListener('DOMContentLoaded', () => {
+  // --- REAL-TIME CONNECTION ---
+  const socket = io(API_URL);
+
+  socket.on('connect', () => {
+    console.log('Connected to real-time server!');
+  });
+
+  // Listen for when a new product is added
+  socket.on('product_added', (newProduct) => {
+    // Add the new product to the top of our local list
+    allProducts.unshift(newProduct);
+    // Re-render the marketplace to show the new product
+    filterAndSortProducts();
+    showMessage(`New gear listed: ${newProduct.name}`);
+  });
+
+  // Listen for when a product is sold
+  socket.on('product_sold', ({ productId }) => {
+    // Find and remove the sold product from our local list
+    allProducts = allProducts.filter(p => p._id !== productId);
+    // Re-render the marketplace to remove the sold product
+    filterAndSortProducts();
+    showMessage('An item was just sold!');
+  });
+
+  // --- EXISTING CODE ---
   checkAuthState();
   renderUI();
   fetchProducts();
@@ -20,7 +46,6 @@ document.getElementById('nav-about-btn').addEventListener('click', () => {
     document.getElementById('services').scrollIntoView({ behavior: 'smooth' });
 });
 
-// ### NEW LISTENER FOR "BACK TO HOME" BUTTON ###
 document.getElementById('services-back-btn').addEventListener('click', () => showSection('hero'));
 
 document.getElementById('nav-sell-btn').addEventListener('click', () => currentUser ? showSection('sell-tab') : showAuthModal());
@@ -28,7 +53,6 @@ document.getElementById('hero-sell-btn').addEventListener('click', () => current
 document.getElementById('nav-cart-btn').addEventListener('click', () => currentUser ? (showSection('cart-tab'), renderCart()) : showAuthModal());
 document.getElementById('checkout-btn').addEventListener('click', e => checkout(e.currentTarget));
 
-// ... rest of the file remains the same ...
 // --- Auth Modal & Form Event Listeners ---
 document.getElementById('close-modal-btn').addEventListener('click', closeAuthModal);
 document.getElementById('toggle-form-btn').addEventListener('click', toggleAuthForm);
@@ -133,9 +157,10 @@ document.getElementById("create-listing-form").addEventListener("submit", async 
       document.getElementById("image-preview").classList.add("hidden");
       fileNameDisplay.textContent = '';
       document.querySelector("#product-category .custom-select-btn span").textContent = 'Electronics';
-
-      newProduct.seller = { _id: currentUser.id, name: currentUser.name };
-      allProducts.unshift(newProduct);
+      
+      // No need to manually add to `allProducts` anymore, Socket.IO will handle it
+      // allProducts.unshift(newProduct);
+      
       filterAndSortProducts();
       showSection('marketplace');
     } catch(error) { 
