@@ -81,7 +81,7 @@ To run this project, you need two terminals: one for the backend and one for the
 4. Run Server:
    change directory to backend folder first
    npm run dev
-  or npm nodemon server.js(change directory to backend folder first)
+  or npx nodemon server.js(change directory to backend folder first)
    The backend will be running on http://localhost:5000.
 
 
