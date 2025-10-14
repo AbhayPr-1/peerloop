@@ -75,7 +75,7 @@ PeerLoop follows a **client-server architecture** enhanced with a **real-time co
 
 ### 🖥️ Backend Setup
 ```bash
-cd path/to/PEERLOOP/backend
+cd path/to/PEERLOOP/
 npm install
 ```
 
@@ -89,6 +89,9 @@ PORT=5000
 Start the backend server:
 ```bash
 npm run dev
+or
+cd path/to/PEERLOOP/backend
+npx nodemon server.js
 ```
 Server runs at 👉 `http://localhost:5000`
 
