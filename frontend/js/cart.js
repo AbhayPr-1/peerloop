@@ -38,7 +38,6 @@ async function addToCart(productId, buttonElement) {
     userCart = data;
     updateCartCount();
 
-    // Visual confirmation on button
     buttonElement.innerHTML = 'Added ✓';
     buttonElement.classList.add('added-to-cart');
     setTimeout(() => {
@@ -61,7 +60,6 @@ function renderCart() {
   cont.innerHTML = '';
 
   if (userCart.length === 0) {
-    // Empty State UI
     cont.innerHTML = `
         <div class="text-center p-8 border-2 border-dashed rounded-md">
             <h3 class="text-2xl font-bold text-gray-400">Your cart is empty.</h3>
@@ -115,15 +113,23 @@ async function removeFromCart(productId, showMsg = true) {
 
 async function checkout(buttonElement) {
   if (userCart.length === 0) return showMessage('Your cart is empty.');
-  const itemsToCheckout = [...userCart];
   
-  setButtonLoading(buttonElement, true, 'Processing...');
-  for (const item of itemsToCheckout) {
-    await buyNow(item._id, null);
-  }
-  await fetchCart();
-  setButtonLoading(buttonElement, false);
-  showMessage("Checkout complete!");
+  const total = userCart.reduce((sum, item) => sum + item.price, 0);
+  const message = `Confirm purchase of <strong>${userCart.length} item(s)</strong> for a total of <strong>${total.toFixed(4)} ETH</strong>?`;
+
+  showConfirmationModal(message, async () => {
+    const itemsToCheckout = [...userCart];
+    
+    for (const item of itemsToCheckout) {
+      // Intentionally don't await so the UI feels fast,
+      // but rely on socket events for the final state.
+      // We pass null for the button element as we don't have one here.
+      buyNow(item._id, null, false);
+    }
+    
+    await fetchCart(); // Re-sync the cart after all requests are fired.
+    showMessage("Checkout complete! Your purchases are being processed.");
+  });
 }
 
 function updateCartCount() {
@@ -134,4 +140,20 @@ function updateCartCount() {
   } else {
     el.classList.add('hidden');
   }
+}
+
+function handleRealTimeCartRemoval(productId, productName) {
+    if (!currentUser) return;
+
+    const removedItemIndex = userCart.findIndex(item => item._id === productId);
+    if (removedItemIndex > -1) {
+        const name = productName || userCart[removedItemIndex].name;
+        userCart.splice(removedItemIndex, 1);
+        
+        updateCartCount();
+        if (!document.getElementById('cart-tab').classList.contains('hidden')) {
+            renderCart();
+        }
+        showMessage(`'${name}' was removed from your cart as it's no longer available.`, 4000);
+    }
 }

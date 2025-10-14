@@ -1,18 +1,17 @@
 // frontend/js/marketplace.js
+
 function createProductCard(product) {
   const card = document.createElement("div");
-  // ### THIS LINE IS NOW FIXED ###
   card.className = "theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col";
-  let actionButtons = "";
-
-  const sellerId = (typeof product.seller === 'object' && product.seller !== null) ? product.seller._id : product.seller;
-  const sellerName = (typeof product.seller === 'object' && product.seller !== null) ? product.seller.name : 'Your new listing';
+  const sellerId = (product.seller && product.seller._id) ? product.seller._id : 'N/A';
+  const sellerName = (product.seller && product.seller.name) ? product.seller.name : 'Unknown Seller';
   const displayCategory = categoryDisplayMap[product.category] || product.category;
 
+  let actionButtons = "";
   if (!currentUser || (currentUser && currentUser.id !== sellerId)) {
     actionButtons = `
-      <button class="modern-button-secondary add-to-cart-btn" data-id="${product._id}">Add to Cart</button>
-      <button class="modern-button buy-now-btn" data-id="${product._id}">Buy Now</button>
+      <button class="modern-button-secondary add-to-cart-btn">Add to Cart</button>
+      <button class="modern-button buy-now-btn">Buy Now</button>
     `;
   }
 
@@ -21,59 +20,48 @@ function createProductCard(product) {
     <h3 class="text-2xl font-bold text-neon-blue mb-2">${product.name}</h3>
     <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
     <div class="text-sm mb-2">
-      Seller: <a href="#" class="seller-link text-neon-blue hover:underline" data-seller-id="${sellerId}" data-seller-name="${sellerName}">${sellerName}</a>
+      Seller: <a href="#" class="seller-link">${sellerName}</a>
     </div>
     <div class="flex items-center justify-between mb-4">
       <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
       <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
     </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
 
-  card.dataset.product = JSON.stringify(product);
-  return card;
-}
-// ... rest of the file remains the same
-function attachCardListeners(grid) {
-  grid.querySelectorAll(".add-to-cart-btn").forEach(btn => {
-    btn.addEventListener("click", e => {
-      e.stopPropagation(); // Prevent card click
-      if (currentUser) {
-        addToCart(e.currentTarget.dataset.id, e.currentTarget);
-      } else {
-        showMessage('Please log in to add items to your cart.');
-        showAuthModal();
-      }
+  // --- NEW: Attach listeners directly after creating the card ---
+  const buyNowBtn = card.querySelector(".buy-now-btn");
+  if (buyNowBtn) {
+    buyNowBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!currentUser) return showAuthModal();
+      const message = `Confirm purchase of <strong>${product.name}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>?`;
+      showConfirmationModal(message, () => buyNow(product._id));
     });
-  });
+  }
 
-  grid.querySelectorAll(".buy-now-btn").forEach(btn => {
-    btn.addEventListener("click", e => {
-      e.stopPropagation(); // Prevent card click
-      if (currentUser) {
-        buyNow(e.currentTarget.dataset.id, e.currentTarget);
-      } else {
-        showMessage('Please log in to purchase an item.');
-        showAuthModal();
-      }
+  const addToCartBtn = card.querySelector(".add-to-cart-btn");
+  if (addToCartBtn) {
+    addToCartBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!currentUser) return showAuthModal();
+      addToCart(product._id, e.currentTarget);
     });
-  });
+  }
 
-  grid.querySelectorAll(".seller-link").forEach(link => {
-    link.addEventListener("click", e => {
+  const sellerLink = card.querySelector(".seller-link");
+  if (sellerLink) {
+    sellerLink.addEventListener("click", (e) => {
       e.preventDefault();
-      e.stopPropagation(); // Prevent card click
-      const sellerId = e.currentTarget.dataset.sellerId;
-      const sellerName = e.currentTarget.dataset.sellerName;
+      e.stopPropagation();
       renderSellerProfile(sellerId, sellerName);
     });
-  });
+  }
+  
+  const quickViewTrigger = card.querySelector('.quick-view-trigger');
+  if(quickViewTrigger) {
+    quickViewTrigger.addEventListener('click', () => showQuickView(product));
+  }
 
-  // Listener for Quick View
-  grid.querySelectorAll('.quick-view-trigger').forEach(trigger => {
-    trigger.addEventListener('click', e => {
-        const productData = JSON.parse(e.currentTarget.closest('.card-neon-border').dataset.product);
-        showQuickView(productData);
-    });
-  });
+  return card;
 }
 
 function renderProducts(list) {
@@ -84,7 +72,6 @@ function renderProducts(list) {
     return;
   }
   list.forEach(p => grid.appendChild(createProductCard(p)));
-  attachCardListeners(grid);
 }
 
 async function fetchProducts() {
@@ -122,32 +109,58 @@ function filterAndSortProducts() {
   renderProducts(list);
 }
 
-async function buyNow(productId, buttonElement) {
+async function buyNow(productId, showMsg = true) {
   if (!currentUser) return showMessage("You must be logged in to purchase.");
-  if (buttonElement) setButtonLoading(buttonElement, true, 'Buying...');
 
   try {
     const response = await fetch(`${API_URL}/api/products/${productId}/buy`, {
       method: 'POST',
-      headers: { 'x-auth-token': localStorage.getItem('token') }
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-auth-token': localStorage.getItem('token') 
+      }
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.msg || 'Purchase failed');
 
-    showMessage(`Purchased "${data.product.name}" successfully!`);
+    if (showMsg) {
+      showMessage(`Purchased "${data.product.name}" successfully!`);
+    }
     
     allProducts = allProducts.filter(p => p._id !== productId);
+    filterAndSortProducts();
     
-    if (buttonElement) {
-        buttonElement.closest('.card-neon-border').remove();
-    } else {
-        filterAndSortProducts(); 
+    if (!document.getElementById('quick-view-modal').classList.contains('hidden')) {
+      closeQuickView();
     }
     
     removeFromCart(productId, false);
+
   } catch(error) {
     showMessage(error.message);
-  } finally {
-    if (buttonElement) setButtonLoading(buttonElement, false);
+    throw error;
   }
+}
+
+async function deleteProduct(productId, buttonElement) {
+    if (!currentUser) return showMessage("You are not authorized.");
+    setButtonLoading(buttonElement, true, 'Deleting...');
+
+    try {
+        const response = await fetch(`${API_URL}/api/products/${productId}`, {
+            method: 'DELETE',
+            headers: { 'x-auth-token': localStorage.getItem('token') }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.msg || 'Failed to delete product.');
+        
+        showMessage("Listing deleted successfully!");
+        
+        allProducts = allProducts.filter(p => p._id !== productId);
+        buttonElement.closest('.card-neon-border').remove();
+        
+    } catch (error) {
+        showMessage(error.message);
+        setButtonLoading(buttonElement, false);
+    }
 }

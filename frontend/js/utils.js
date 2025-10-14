@@ -45,19 +45,6 @@ function showMessage(message, duration = 3000) {
   setTimeout(() => msgBox.classList.add("hidden"), duration);
 }
 
-function showLoadingMessage(message) {
-  const msgBox = document.getElementById("message-box");
-  msgBox.textContent = message;
-  msgBox.classList.remove("hidden");
-  msgBox.classList.add("animate-pulse", "text-neon-blue");
-}
-
-function hideLoadingMessage() {
-  const msgBox = document.getElementById("message-box");
-  msgBox.classList.add("hidden");
-  msgBox.classList.remove("animate-pulse", "text-neon-blue");
-}
-
 function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
     if (isLoading) {
         button.disabled = true;
@@ -65,15 +52,17 @@ function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
         button.innerHTML = `<span class="loader"></span> ${loadingText}`;
     } else {
         button.disabled = false;
-        button.innerHTML = button.dataset.originalText;
+        if (button.dataset.originalText) {
+            button.innerHTML = button.dataset.originalText;
+        }
     }
 }
 
-// ### THIS FUNCTION IS NOW FIXED ###
 function createProfileProductCard(product, context) {
     const card = document.createElement("div");
     card.className = "theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col";
     let contextInfo = '';
+    let actionButtons = '';
     
     const displayCategory = categoryDisplayMap[product.category] || product.category;
 
@@ -83,6 +72,11 @@ function createProfileProductCard(product, context) {
         contextInfo = `<p class="text-sm text-yellow-400 mb-2">Purchased from: ${product.seller.name}</p>`;
     } else if (context === 'listings') {
          contextInfo = `<p class="text-sm text-blue-400 mb-2">Status: Listed for sale</p>`;
+         actionButtons = `
+            <div class="grid grid-cols-1 gap-3 mt-4">
+                <button class="modern-button-secondary delete-listing-btn !border-red-500 !text-red-500 hover:!bg-red-500 hover:!text-white">Delete</button>
+            </div>
+         `;
     }
 
     card.innerHTML = `
@@ -94,6 +88,23 @@ function createProfileProductCard(product, context) {
             <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
             <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
         </div>
+        ${actionButtons}
     `;
+
+    if (context === 'listings') {
+        const deleteBtn = card.querySelector('.delete-listing-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                // THIS IS THE FIX: Get a stable reference to the button right away.
+                const buttonThatWasClicked = e.currentTarget;
+
+                const message = `Are you sure you want to permanently delete this listing? This action cannot be undone.`;
+                
+                // Then, use that stable reference in the confirmation callback.
+                showConfirmationModal(message, () => deleteProduct(product._id, buttonThatWasClicked));
+            });
+        }
+    }
+
     return card;
 }

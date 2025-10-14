@@ -29,7 +29,6 @@ function toggleAuthForm() {
         title.textContent = 'Login';
         toggleBtn.textContent = 'Don\'t have an account? Sign up';
     }
-    // Clear any previous error messages when toggling
     document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
 }
 
@@ -62,7 +61,6 @@ async function handleLogin(identifier, password, buttonElement) {
 }
 
 async function handleSignup(name, email, password, buttonElement) {
-    // Clear previous errors
     document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
     setButtonLoading(buttonElement, true, 'Signing up...');
     try {
@@ -73,7 +71,6 @@ async function handleSignup(name, email, password, buttonElement) {
         });
         const data = await response.json();
         if (!response.ok) {
-            // Handle inline validation errors
             if (data.errors) {
                 data.errors.forEach(err => {
                     const errorEl = document.getElementById(`signup-${err.path}-error`);

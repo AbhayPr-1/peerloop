@@ -37,7 +37,10 @@ router.post('/', [
   const { name, description, price, category, imageUrl } = req.body;
   try {
     const newProduct = new Product({ name, description, price, category, imageUrl, seller: req.user.id });
-    const product = await newProduct.save();
+    let product = await newProduct.save();
+    
+    // This line ensures the seller info is included in the real-time event
+    product = await product.populate('seller', 'name');
     
     // **EMIT EVENT**: Tell all clients a new product was added
     req.io.emit('product_added', product);
@@ -88,6 +91,46 @@ router.post('/:id/buy', auth, async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error("Transaction Error:", err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// DELETE a product listing
+router.delete('/:id', auth, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const product = await Product.findById(req.params.id).session(session);
+
+    if (!product) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ msg: 'Product not found' });
+    }
+
+    // Authorization Check: Ensure the user deleting is the seller
+    if (product.seller.toString() !== req.user.id) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(401).json({ msg: 'User not authorized' });
+    }
+
+    await product.deleteOne({ session });
+
+    // Also remove the product from any user's cart
+    await User.updateMany({ cart: req.params.id }, { $pull: { cart: req.params.id } }).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // **EMIT EVENT**: Tell all clients a product was deleted
+    req.io.emit('product_deleted', { productId: req.params.id });
+
+    res.json({ msg: 'Product removed successfully' });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Delete Product Error:", err.message);
     res.status(500).send('Server Error');
   }
 });
