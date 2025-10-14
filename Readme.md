@@ -7,6 +7,11 @@ Built with **Node.js**, **Express.js**, **MongoDB**, **Socket.IO**, and a **Vani
 
 ---
 
+## 🎯 Project Philosophy
+PeerLoop was built on the principle of **true peer-to-peer commerce**. In a world of centralized marketplaces that take a cut of every sale and control the user experience, PeerLoop empowers users to trade directly. The cyberpunk aesthetic isn't just for show—it reflects a future of decentralization, user autonomy, and direct connections.
+
+---
+
 ## ✨ Key Features
 
 ### 🔐 Complete User Authentication
