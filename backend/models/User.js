@@ -1,13 +1,13 @@
-// backend/models/User.js (UPDATED)
-
+// backend/models/User.js
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  // Email and password are now optional
+  email: { type: String, unique: true, sparse: true }, // sparse allows uniqueness on non-null values
+  password: { type: String },
+  // WalletAddress is the primary identifier for Web3 users
   walletAddress: { type: String, unique: true, sparse: true },
-  // V-- ADD THIS FIELD --V
   cart: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }]
 });
 

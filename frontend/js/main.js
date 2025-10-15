@@ -41,10 +41,6 @@ function handleProductDeleted({ productId }) {
     handleRealTimeCartRemoval(productId, deletedProduct?.name);
 }
 
-/**
- * Sets up the event listeners for the confirmation modal buttons once.
- * This version is async-aware to handle API calls properly.
- */
 function initializeModalListeners() {
     const confirmBtn = document.getElementById('confirm-action-btn');
     const cancelBtn = document.getElementById('confirm-cancel-btn');
@@ -53,9 +49,7 @@ function initializeModalListeners() {
         if (typeof currentConfirmAction !== 'function') {
             return closeConfirmationModal();
         }
-
         setButtonLoading(confirmBtn, true, 'Confirming...');
-
         try {
             await currentConfirmAction();
         } catch (error) {
@@ -82,15 +76,6 @@ document.getElementById('checkout-btn').addEventListener('click', e => checkout(
 
 // --- Auth Modal & Form Event Listeners ---
 document.getElementById('close-modal-btn').addEventListener('click', closeAuthModal);
-document.getElementById('toggle-form-btn').addEventListener('click', toggleAuthForm);
-document.getElementById('login-form').addEventListener('submit', e => {
-  e.preventDefault();
-  handleLogin(document.getElementById('login-identifier').value, document.getElementById('login-password').value, e.submitter);
-});
-document.getElementById('signup-form').addEventListener('submit', e => {
-  e.preventDefault();
-  handleSignup(document.getElementById('signup-name').value, document.getElementById('signup-email').value, document.getElementById('signup-password').value, e.submitter);
-});
 document.getElementById("metamask-login-btn").addEventListener("click", e => handleMetaMaskLogin(e.currentTarget));
 
 // --- Profile Dropdown Event Listeners ---
@@ -123,7 +108,6 @@ uploader.addEventListener('drop', e => {
 fileInput.addEventListener('change', () => handleFileChange(fileInput.files[0]));
 document.getElementById("create-listing-form").addEventListener("submit", createListingFormHandler);
 
-// --- PROFILE RENDERING FUNCTION ---
 async function renderProfileSection(type) {
   document.getElementById('profile-dropdown-menu').classList.add('hidden');
   if (!currentUser) return;
@@ -169,16 +153,13 @@ async function renderProfileSection(type) {
       return;
     }
 
-    // This loop now adds cards that already have their listeners attached.
     products.forEach(product => grid.appendChild(createProfileProductCard(product, type)));
     
-    // The old, fragile listener code that was here has been removed.
-
   } catch (error) {
     grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
   }
 }
-// --- HELPER FUNCTIONS ---
+
 function handleFileChange(file) {
     if (!file) return;
     if (!file.type.startsWith("image/")) { showMessage("Invalid file type."); fileInput.value = ""; return; }
@@ -269,11 +250,7 @@ async function renderSellerProfile(sellerId, sellerName) {
       return;
     }
     
-    // This loop now creates cards that already have their listeners attached.
     data.products.forEach(product => grid.appendChild(createProductCard(product)));
-    
-    // V-- THIS IS THE FIX --V
-    // attachCardListeners(grid); // This line is removed, as it's no longer needed.
     
   } catch (error) {
     grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;

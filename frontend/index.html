@@ -94,6 +94,8 @@
                 <a href="#" data-value="wearables">Wearables</a>
                 <a href="#" data-value="cybernetics">Cybernetics</a>
                 <a href="#" data-value="data">Data & Software</a>
+                <a href="#" data-value="gadgets">Gadgets</a>
+                <a href="#" data-value="others">Others</a>
             </div>
         </div>
         <div id="sort-by" class="relative w-full sm:w-1/4">
@@ -133,6 +135,8 @@
                     <a href="#" data-value="wearables">Wearables</a>
                     <a href="#" data-value="cybernetics">Cybernetics</a>
                     <a href="#" data-value="data">Data & Software</a>
+                    <a href="#" data-value="gadgets">Gadgets</a>
+                    <a href="#" data-value="others">Others</a>
                 </div>
             </div>
           </div>
@@ -194,28 +198,8 @@
   <div class="auth-modal-content rounded-3xl p-8 w-11/12 max-w-md transform transition-all duration-500 scale-95 opacity-0 modal-content">
     <button id="close-modal-btn" class="absolute top-4 right-4 text-neon-pink hover:text-red-500 text-4xl">&times;</button>
     <h2 id="auth-title" class="text-3xl font-bold mb-6 text-center text-neon-blue">Login</h2>
-    <form id="login-form" class="space-y-4">
-      <input type="text" id="login-identifier" placeholder="Email or Username" required class="w-full p-3 rounded-xl auth-input">
-      <input type="password" id="login-password" placeholder="Password" required class="w-full p-3 rounded-xl auth-input">
-      <button type="submit" class="w-full modern-button text-lg">Login</button>
-    </form>
-    <form id="signup-form" class="space-y-4 hidden">
-      <div>
-        <input type="text" id="signup-name" placeholder="Name" required class="w-full p-3 rounded-xl auth-input">
-        <p id="signup-name-error" class="form-error"></p>
-      </div>
-      <div>
-        <input type="email" id="signup-email" placeholder="Email" required class="w-full p-3 rounded-xl auth-input">
-        <p id="signup-email-error" class="form-error"></p>
-      </div>
-      <div>
-        <input type="password" id="signup-password" placeholder="Password" required class="w-full p-3 rounded-xl auth-input">
-        <p id="signup-password-error" class="form-error"></p>
-      </div>
-      <button type="submit" class="w-full modern-button text-lg">Sign Up</button>
-    </form>
+    <p class="text-center text-gray-300 mb-8">Please connect your MetaMask wallet to log in or create an account.</p>
     <button id="metamask-login-btn" class="w-full modern-button text-lg mt-4">🦊 Login with MetaMask</button>
-    <div class="text-center mt-6"><button id="toggle-form-btn" class="text-neon-blue font-medium hover:underline">Don't have an account? Sign up</button></div>
   </div>
 </div>
 

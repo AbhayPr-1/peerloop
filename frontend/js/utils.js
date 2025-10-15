@@ -3,12 +3,15 @@ const API_URL = `http://${window.location.hostname}:5000`;
 
 let currentUser = null;
 let allProducts = [];
+let purchaseIntentProductId = null;
 
 const categoryDisplayMap = {
     'electronics': 'Electronics',
     'wearables': 'Wearables',
     'cybernetics': 'Cybernetics',
-    'data': 'Data & Software'
+    'data': 'Data & Software',
+    'gadgets': 'Gadgets',
+    'others': 'Others'
 };
 
 function checkAuthState() {
@@ -17,11 +20,17 @@ function checkAuthState() {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       if (payload.exp * 1000 > Date.now()) {
-        currentUser = { id: payload.user.id, name: localStorage.getItem('username') };
+        currentUser = { 
+          id: payload.user.id, 
+          name: payload.user.name, 
+          walletAddress: payload.user.walletAddress 
+        };
+        if(!currentUser.name) currentUser.name = localStorage.getItem('username');
       } else {
         logout();
       }
     } catch (e) {
+      console.error("Auth check failed:", e);
       logout();
     }
   }
@@ -32,7 +41,6 @@ function logout() {
   localStorage.removeItem('username');
   currentUser = null;
   renderUI();
-  filterAndSortProducts();
   showMessage("You have been logged out.");
   showSection("hero");
   updateCartCount();
@@ -46,6 +54,7 @@ function showMessage(message, duration = 3000) {
 }
 
 function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
+    if (!button) return;
     if (isLoading) {
         button.disabled = true;
         button.dataset.originalText = button.innerHTML;
@@ -53,7 +62,7 @@ function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
     } else {
         button.disabled = false;
         if (button.dataset.originalText) {
-            button.innerHTML = button.dataset.originalText;
+          button.innerHTML = button.dataset.originalText;
         }
     }
 }
@@ -95,12 +104,8 @@ function createProfileProductCard(product, context) {
         const deleteBtn = card.querySelector('.delete-listing-btn');
         if (deleteBtn) {
             deleteBtn.addEventListener('click', (e) => {
-                // THIS IS THE FIX: Get a stable reference to the button right away.
                 const buttonThatWasClicked = e.currentTarget;
-
                 const message = `Are you sure you want to permanently delete this listing? This action cannot be undone.`;
-                
-                // Then, use that stable reference in the confirmation callback.
                 showConfirmationModal(message, () => deleteProduct(product._id, buttonThatWasClicked));
             });
         }

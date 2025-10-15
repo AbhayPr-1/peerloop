@@ -26,7 +26,7 @@ router.post('/', [
   body('name', 'Product name is required').not().isEmpty().trim().escape(),
   body('description', 'Description is required').not().isEmpty().trim().escape(),
   body('price', 'Price must be a positive number').isFloat({ gt: 0 }),
-  body('category', 'A valid category is required').isIn(['electronics', 'wearables', 'cybernetics', 'data']),
+  body('category', 'A valid category is required').isIn(['electronics', 'wearables', 'cybernetics', 'data', 'gadgets', 'others']),
   body('imageUrl', 'Image is required').not().isEmpty()
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -39,10 +39,8 @@ router.post('/', [
     const newProduct = new Product({ name, description, price, category, imageUrl, seller: req.user.id });
     let product = await newProduct.save();
     
-    // This line ensures the seller info is included in the real-time event
     product = await product.populate('seller', 'name');
     
-    // **EMIT EVENT**: Tell all clients a new product was added
     req.io.emit('product_added', product);
     
     res.json(product);
@@ -83,7 +81,6 @@ router.post('/:id/buy', auth, async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // **EMIT EVENT**: Tell all clients a product was sold
     req.io.emit('product_sold', { productId: req.params.id });
 
     res.json({ msg: 'Product purchased successfully', product });
@@ -108,7 +105,6 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(404).json({ msg: 'Product not found' });
     }
 
-    // Authorization Check: Ensure the user deleting is the seller
     if (product.seller.toString() !== req.user.id) {
       await session.abortTransaction();
       session.endSession();
@@ -117,13 +113,11 @@ router.delete('/:id', auth, async (req, res) => {
 
     await product.deleteOne({ session });
 
-    // Also remove the product from any user's cart
     await User.updateMany({ cart: req.params.id }, { $pull: { cart: req.params.id } }).session(session);
 
     await session.commitTransaction();
     session.endSession();
 
-    // **EMIT EVENT**: Tell all clients a product was deleted
     req.io.emit('product_deleted', { productId: req.params.id });
 
     res.json({ msg: 'Product removed successfully' });
