@@ -17,15 +17,10 @@
   border-color: var(--neon-pink);
   box-shadow: 0 0 10px var(--neon-pink);
 }
-
-/* ### THIS IS THE FIX ### */
-/* Makes input text readable in light mode */
 html[data-theme='light'] .auth-input {
     color: var(--text-color);
     border-color: var(--neon-blue);
 }
-
-/* Optional: Makes placeholder text a bit more visible in light mode */
 html[data-theme='light'] .auth-input::placeholder {
     color: #6c757d;
 }

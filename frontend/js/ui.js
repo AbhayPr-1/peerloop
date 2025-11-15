@@ -27,6 +27,12 @@ function showSection(sectionId) {
     navExploreBtn.classList.remove('hidden');
     if (currentUser) navSellBtn.classList.remove('hidden');
   }
+  
+  // FIX: Explicitly fetch products only when navigating to the marketplace, no delay on manual navigation
+  if (sectionId === 'marketplace') {
+      fetchProducts(false);
+  }
+
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -36,7 +42,7 @@ function renderUI() {
   const profileDropdown = document.getElementById("profile-dropdown-container");
   const loggedIn = !!currentUser;
 
-  cartBtn.classList.toggle("hidden", !loggedIn);
+  cartBtn.classList.toggle("hidden", !loggedIn); 
 
   if (loggedIn) {
     authBtn.classList.add('hidden');
@@ -48,17 +54,16 @@ function renderUI() {
     authBtn.onclick = showAuthModal;
     profileDropdown.classList.add('hidden');
   }
-  updateCartCount();
+  
+  fetchCart(); 
 }
 
 function showConfirmationModal(message, onConfirmCallback) {
   const modal = document.getElementById('confirmation-modal');
   const content = modal.querySelector('.modal-content');
   const messageEl = document.getElementById('confirmation-message');
-
   messageEl.innerHTML = message;
   currentConfirmAction = onConfirmCallback; 
-
   modal.classList.remove('hidden');
   setTimeout(() => content.classList.remove('scale-95', 'opacity-0'), 10);
 }
@@ -76,11 +81,16 @@ function closeConfirmationModal() {
 function showQuickView(product) {
     const modal = document.getElementById('quick-view-modal');
     const content = document.getElementById('quick-view-content');
-    const sellerId = (product.seller && product.seller._id) ? product.seller._id : 'N/A';
-    const sellerName = (product.seller && product.seller.name) ? product.seller.name : 'Unknown Seller';
+
+    // *** UPDATED: Format the address for display ***
+    const sellerAddress = product.seller;
+    const sellerDisplay = (product.seller && product.seller.name) ? product.seller.name : formatAddress(sellerAddress);
     
+    const imageUrl = product.imageUrl || 'http://via.placeholder.com/300x200.png?text=No+Image';
+    const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
+
     let actionButtons = "";
-    if (!currentUser || (currentUser && currentUser.id !== sellerId)) {
+    if (!currentUser || (currentUser && currentUser.walletAddress.toLowerCase() !== product.seller.toLowerCase())) {
         actionButtons = `
           <button class="modern-button-secondary add-to-cart-btn">Add to Cart</button>
           <button class="modern-button buy-now-btn">Buy Now</button>
@@ -90,31 +100,30 @@ function showQuickView(product) {
     content.innerHTML = `
         <button id="close-quick-view-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-            <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-auto object-cover rounded-xl">
+            <img src="${imageUrl}" alt="${product.name}" class="w-full h-auto object-cover rounded-xl">
             <div class="flex flex-col h-full">
                 <h3 class="text-4xl font-bold text-neon-blue mb-4">${product.name}</h3>
                 <p class="text-gray-400 mb-4 flex-grow">${product.description}</p>
-                <div class="text-sm mb-4">
-                  Seller: <a href="#" class="seller-link">${sellerName}</a>
+                <div class="text-sm mb-4" style="overflow-wrap: break-word;">
+                  Seller: <a href="#" class="seller-link">${sellerDisplay}</a>
                 </div>
                 <div class="flex items-center justify-between mb-6">
                     <span class="text-3xl text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-                    <span class="text-sm px-3 py-1 rounded bg-gray-700">${categoryDisplayMap[product.category]}</span>
+                    <span class="text-sm px-3 py-1 rounded bg-gray-700">${displayCategory}</span>
                 </div>
                 <div class="grid grid-cols-2 gap-3">${actionButtons}</div>
             </div>
         </div>
     `;
 
-    // Attach listeners directly to the new content
     document.getElementById('close-quick-view-btn').addEventListener('click', closeQuickView);
     
     const buyNowBtn = content.querySelector(".buy-now-btn");
     if (buyNowBtn) {
-        buyNowBtn.addEventListener('click', () => {
+        buyNowBtn.addEventListener('click', (e) => {
             if (!currentUser) return showAuthModal();
             const message = `Confirm purchase of <strong>${product.name}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>?`;
-            showConfirmationModal(message, () => buyNow(product._id));
+            showConfirmationModal(message, () => buyNow(product, e.currentTarget));
         });
     }
 
@@ -122,7 +131,7 @@ function showQuickView(product) {
     if(addToCartBtn) {
         addToCartBtn.addEventListener('click', (e) => {
             if (!currentUser) return showAuthModal();
-            addToCart(product._id, e.currentTarget);
+            addToCart(product, e.currentTarget);
         });
     }
 
@@ -130,7 +139,7 @@ function showQuickView(product) {
     if (sellerLink) {
         sellerLink.addEventListener('click', (e) => {
             e.preventDefault();
-            renderSellerProfile(sellerId, sellerName);
+            renderSellerProfile(product.seller, sellerDisplay);
         });
     }
 

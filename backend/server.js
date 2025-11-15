@@ -3,18 +3,20 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const http = require('http'); // 1. Import http
-const { Server } = require("socket.io"); // 2. Import Server from socket.io
+const http = require('http'); 
+const { Server } = require("socket.io"); 
+const startContractListener = require('./contractListener');
 
 const app = express();
-const server = http.createServer(app); // 3. Create an http server with your app
-
-// 4. Initialize Socket.IO and attach it to the server, allowing all origins
+const server = http.createServer(app); 
 const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
-  }
+  },
+  // FIX: Explicitly configure aggressive timeouts to prevent "transport close"
+  pingTimeout: 60000, // Keep connection alive for up to 60 seconds of silence
+  pingInterval: 10000 // Send ping every 10 seconds
 });
 
 // --- Middleware ---
@@ -27,25 +29,34 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.error('MongoDB connection error:', err));
 
 // --- API Routes ---
-// Pass `io` to your routes so they can emit events
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/products', (req, res, next) => {
-  req.io = io;
-  next();
-}, require('./routes/products'));
-app.use('/api/users', require('./routes/users'));
+app.use('/api/upload', require('./routes/upload')); 
+app.use('/api/config', require('./routes/config')); // <— ADDED LINE
 
 // --- Socket.IO Connection ---
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+  console.log('User connected to Socket.IO.');
+  
+  // Log disconnection reasons
+  socket.on('disconnect', (reason) => {
+    console.log(`Socket disconnected: ${socket.id}. Reason: ${reason}`);
+  });
+  
+  socket.on('error', (error) => {
+    console.error(`Socket error on ${socket.id}:`, error);
   });
 });
 
 // --- Start Server ---
 const PORT = process.env.PORT || 5000;
-// 5. Use `server.listen` instead of `app.listen`
 server.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
+  const listenerHandle = startContractListener(io, { pollIntervalMs: 3000, lookbackBlocks: 3 });
+
+// graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('SIGINT received - stopping listener and server...');
+  if (listenerHandle && typeof listenerHandle.stop === 'function') listenerHandle.stop();
+  server.close(() => process.exit(0));
+});
 });

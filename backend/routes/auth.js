@@ -1,11 +1,9 @@
 // backend/routes/auth.js
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// --- METAMASK LOGIN / REGISTER ---
 router.post('/metamask', async (req, res) => {
     const { walletAddress } = req.body;
     if (!walletAddress) {
@@ -15,11 +13,9 @@ router.post('/metamask', async (req, res) => {
     try {
         let user = await User.findOne({ walletAddress });
 
-        // If user does not exist, create a new one
         if (!user) {
             const name = `User-${walletAddress.slice(2, 8).toLowerCase()}`;
             
-            // Check if generated name already exists, append random numbers if it does
             let finalName = name;
             let nameExists = await User.findOne({ name: finalName });
             while (nameExists) {

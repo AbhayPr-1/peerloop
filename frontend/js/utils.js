@@ -14,6 +14,14 @@ const categoryDisplayMap = {
     'others': 'Others'
 };
 
+// *** NEW FUNCTION ***
+function formatAddress(address) {
+    if (!address || address.length < 10) return address;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+// *** END NEW FUNCTION ***
+
+
 function checkAuthState() {
   const token = localStorage.getItem('token');
   if (token) {
@@ -39,11 +47,13 @@ function checkAuthState() {
 function logout() {
   localStorage.removeItem('token');
   localStorage.removeItem('username');
+  if (currentUser) {
+    localStorage.removeItem(`peerloop_cart_${currentUser.id}`);
+  }
   currentUser = null;
   renderUI();
   showMessage("You have been logged out.");
   showSection("hero");
-  updateCartCount();
 }
 
 function showMessage(message, duration = 3000) {
@@ -57,12 +67,15 @@ function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
     if (!button) return;
     if (isLoading) {
         button.disabled = true;
-        button.dataset.originalText = button.innerHTML;
+        if (!button.dataset.originalText) {
+            button.dataset.originalText = button.innerHTML;
+        }
         button.innerHTML = `<span class="loader"></span> ${loadingText}`;
     } else {
         button.disabled = false;
         if (button.dataset.originalText) {
           button.innerHTML = button.dataset.originalText;
+          delete button.dataset.originalText;
         }
     }
 }
@@ -73,12 +86,18 @@ function createProfileProductCard(product, context) {
     let contextInfo = '';
     let actionButtons = '';
     
-    const displayCategory = categoryDisplayMap[product.category] || product.category;
+    const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
+    const imageUrl = product.imageUrl || 'http://via.placeholder.com/300x200.png?text=No+Image';
+
+    // *** UPDATED: Use formatAddress for display ***
+    const sellerAddressDisplay = formatAddress(product.seller);
+    const buyerAddressDisplay = formatAddress(product.buyer);
+
 
     if (context === 'sold' && product.buyer) {
-        contextInfo = `<p class="text-sm text-green-400 mb-2">Sold to: ${product.buyer.name}</p>`;
+        contextInfo = `<p class="text-sm text-green-400 mb-2" style="overflow-wrap: break-word;">Sold to: ${product.buyer.name || buyerAddressDisplay}</p>`;
     } else if (context === 'purchased' && product.seller) {
-        contextInfo = `<p class="text-sm text-yellow-400 mb-2">Purchased from: ${product.seller.name}</p>`;
+        contextInfo = `<p class="text-sm text-yellow-400 mb-2" style="overflow-wrap: break-word;">Purchased from: ${product.seller.name || sellerAddressDisplay}</p>`;
     } else if (context === 'listings') {
          contextInfo = `<p class="text-sm text-blue-400 mb-2">Status: Listed for sale</p>`;
          actionButtons = `
@@ -89,7 +108,7 @@ function createProfileProductCard(product, context) {
     }
 
     card.innerHTML = `
-        <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4">
+        <img src="${imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4">
         <h3 class="text-2xl font-bold text-neon-blue mb-2">${product.name}</h3>
         ${contextInfo}
         <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
@@ -105,7 +124,7 @@ function createProfileProductCard(product, context) {
         if (deleteBtn) {
             deleteBtn.addEventListener('click', (e) => {
                 const buttonThatWasClicked = e.currentTarget;
-                const message = `Are you sure you want to permanently delete this listing? This action cannot be undone.`;
+                const message = `Are you sure you want to permanently delete this listing from the blockchain? This action cannot be undone.`;
                 showConfirmationModal(message, () => deleteProduct(product._id, buttonThatWasClicked));
             });
         }
