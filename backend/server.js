@@ -1,5 +1,10 @@
 // backend/server.js
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+// optional debug (keep while testing)
+console.log('DEBUG: SEPOLIA_RPC_URL=', !!process.env.SEPOLIA_RPC_URL);
+console.log('DEBUG: CONTRACT_ADDRESS=', !!process.env.CONTRACT_ADDRESS);
+console.log('DEBUG: MONGO_URI=', !!process.env.MONGO_URI);
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -24,9 +29,11 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '5mb' }));
 
 // --- Database Connection ---
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected successfully'))
+const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/peerloop';
+mongoose.connect(mongoUri)
+  .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
+
 
 // --- API Routes ---
 app.use('/api/auth', require('./routes/auth'));
