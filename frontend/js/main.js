@@ -5,85 +5,82 @@ document.addEventListener('DOMContentLoaded', async () => {
   // CRITICAL: Initialize the read-only provider first!
   await initializeReadOnlyProvider(); // <— ADDED LINE
     
-  // FIX: Aggressive Socket.IO Configuration for better resilience
-  const socket = io(API_URL, {
-    reconnection: true,             // Enable reconnection attempts
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 500,         
-    timeout: 20000,
-    pingInterval: 10000,
-  });
-  
-  // *** FINAL SOCKET CONNECTION HANDLERS ***
-  socket.on('connect', () => {
-      console.log('DEBUG: Socket: Connected to real-time server!');
-      // showMessage("Real-time enabled.", 2000);
-      if (document.getElementById('marketplace').classList.contains('hidden') === false) {
-          fetchProducts(false); 
-      }
-  });
+  // Socket.IO Configuration (guarded if socket.io is unavailable)
+  let socket = null;
+  if (typeof io !== 'undefined') {
+    socket = io(API_URL, {
+      reconnection: true,             // Enable reconnection attempts
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,         
+      timeout: 20000,
+      pingInterval: 10000,
+    });
+    
+    // *** FINAL SOCKET CONNECTION HANDLERS ***
+    socket.on('connect', () => {
+        console.log('DEBUG: Socket: Connected to real-time server!');
+        if (document.getElementById('marketplace').classList.contains('hidden') === false) {
+            fetchProducts(false); 
+        }
+    });
 
-  socket.on('ping', () => { console.log('DEBUG: Socket Ping Received (Connection Alive)'); });
+    socket.on('ping', () => { console.log('DEBUG: Socket Ping Received (Connection Alive)'); });
 
-  socket.on('disconnect', (reason) => {
-      console.error('DEBUG: Socket: Disconnected. Reason:', reason);
-      showMessage("Real-time connection lost. Reconnecting...", 5000);
-  });
-  
-  socket.on('reconnect', () => {
-      console.log('DEBUG: Socket: Reconnected successfully.');
-      showMessage("Real-time connection restored. Refreshing...", 3000);
-      fetchProducts(true); 
-  });
-  
-  socket.on('reconnect_error', (error) => {
-      console.error('DEBUG: Socket: Reconnect error. Forcing fresh connection.', error);
-      socket.close();
-      setTimeout(() => socket.open(), 5000); 
-  });
-  
-  socket.on('reconnect_failed', () => {
-      console.error('DEBUG: Socket: Reconnection failed permanently.');
-      showMessage("Real-time connection failed permanently. Please refresh the page.", 6000);
-  });
+    socket.on('disconnect', (reason) => {
+        console.error('DEBUG: Socket: Disconnected. Reason:', reason);
+        showMessage("Real-time connection lost. Reconnecting...", 5000);
+    });
+    
+    socket.on('reconnect', () => {
+        console.log('DEBUG: Socket: Reconnected successfully.');
+        showMessage("Real-time connection restored. Refreshing...", 3000);
+        fetchProducts(true); 
+    });
+    
+    socket.on('reconnect_error', (error) => {
+        console.error('DEBUG: Socket: Reconnect error. Forcing fresh connection.', error);
+        socket.close();
+        setTimeout(() => socket.open(), 5000); 
+    });
+    
+    socket.on('reconnect_failed', () => {
+        console.error('DEBUG: Socket: Reconnection failed permanently.');
+        showMessage("Real-time connection failed permanently. Please refresh the page.", 6000);
+    });
 
-  // CRITICAL FIX: Add sync delay for transaction events
-  socket.on('product_updated', (data) => {
-      console.log('DEBUG: Socket Event Received: product_updated', data);
-      
-      if (socket.connected) {
-          showMessage(`Real-time update: A product was ${data.type}. Refreshing...`); 
-          
-          try {
-              fetchProducts(true); 
-          } catch (e) {
-              console.error("Failed to execute fetchProducts during real-time update:", e);
-          }
-          
-          if (data.type === 'sold' || data.type === 'deleted') {
-            handleRealTimeCartRemoval(data.id, data.name);
-          }
-      } else {
-          console.warn("DEBUG: Real-time event received but socket is disconnected. Ignoring event.");
-      }
-  });
+    socket.on('product_updated', (data) => {
+        console.log('DEBUG: Socket Event Received: product_updated', data);
+        if (socket.connected) {
+            showMessage(`Real-time update: A product was ${data.type}. Refreshing...`); 
+            try {
+                fetchProducts(true); 
+            } catch (e) {
+                console.error("Failed to execute fetchProducts during real-time update:", e);
+            }
+            if (data.type === 'sold' || data.type === 'deleted') {
+              handleRealTimeCartRemoval(data.id, data.name);
+            }
+        }
+    });
+  } else {
+    console.warn("Socket.IO client library not found. Real-time updates disabled.");
+  }
   
   checkAuthState();
+  renderUI();
 
   if (currentUser && typeof window.ethereum !== 'undefined') {
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
-      await provider.send("eth_requestAccounts", []);
-      const signer = provider.getSigner();
-      await connectContractToSigner(signer); 
+      const accounts = await provider.send("eth_accounts", []);
+      if (accounts && accounts.length > 0) {
+        const signer = provider.getSigner();
+        await connectContractToSigner(signer); 
+      }
     } catch (e) {
-      console.error("Failed to auto-re-initialize contract:", e);
-      showMessage("Please reconnect your wallet.");
-      logout();
+      console.warn("Could not auto-connect signer:", e);
     }
   }
-
-  renderUI();
   // *** FIX APPLIED: Removed redundant fetchProducts(false) call here. ***
   initializeModalListeners();
   showSection('hero'); // This initiates the initial UI state
@@ -219,6 +216,7 @@ async function createListingFormHandler(e) {
   if (!currentUser) return showMessage("You must be logged in.");
   if (!marketplaceContract || !signer) return showMessage("Connecting to contract... Please wait and try again."); 
 
+  await ensureSepoliaNetwork();
   const buttonElement = e.submitter;
   setButtonLoading(buttonElement, true, 'Checking...');
   
@@ -247,8 +245,15 @@ async function createListingFormHandler(e) {
       body: formData
     });
     if (!uploadResponse.ok) {
-      const err = await uploadResponse.json();
-      throw new Error(err.msg || 'Image upload failed.');
+      let errorMsg = 'Image upload failed.';
+      try {
+        const err = await uploadResponse.json();
+        errorMsg = err.msg || err.error || errorMsg;
+      } catch (_) {
+        const text = await uploadResponse.text();
+        if (text) errorMsg = text;
+      }
+      throw new Error(errorMsg);
     }
     const uploadData = await uploadResponse.json();
     const imageUrl = uploadData.imageUrl; 

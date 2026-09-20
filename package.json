@@ -4,8 +4,14 @@
   "description": "Backend server for the PeerLoop application",
   "main": "server.js",
   "scripts": {
-     "start": "node ./backend/server.js",
-  "dev": "nodemon ./backend/server.js"
+    "setup": "node scripts/setup.js",
+    "dev": "concurrently -n \"backend,frontend\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "nodemon ./backend/server.js",
+    "dev:frontend": "serve frontend -l 3000",
+    "start": "node ./backend/server.js",
+    "contracts:compile": "npm run --prefix smart-contract compile",
+    "contracts:deploy": "npm run --prefix smart-contract deploy",
+    "contracts:deploy:local": "npm run --prefix smart-contract deploy:local"
   },
   "dependencies": {
     "@pinata/sdk": "^2.1.0",
@@ -21,6 +27,8 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "concurrently": "^10.0.5",
+    "nodemon": "^3.1.11",
+    "serve": "^14.2.6"
   }
 }

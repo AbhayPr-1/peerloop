@@ -1,6 +1,11 @@
 // backend/server.js
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// Fix MongoDB Atlas DNS resolution
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
 // optional debug (keep while testing)
 console.log('DEBUG: SEPOLIA_RPC_URL=', !!process.env.SEPOLIA_RPC_URL);
 console.log('DEBUG: CONTRACT_ADDRESS=', !!process.env.CONTRACT_ADDRESS);
@@ -8,12 +13,12 @@ console.log('DEBUG: MONGO_URI=', !!process.env.MONGO_URI);
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const http = require('http'); 
-const { Server } = require("socket.io"); 
+const http = require('http');
+const { Server } = require("socket.io");
 const startContractListener = require('./contractListener');
 
 const app = express();
-const server = http.createServer(app); 
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -37,18 +42,18 @@ mongoose.connect(mongoUri)
 
 // --- API Routes ---
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/upload', require('./routes/upload')); 
+app.use('/api/upload', require('./routes/upload'));
 app.use('/api/config', require('./routes/config')); // <— ADDED LINE
 
 // --- Socket.IO Connection ---
 io.on('connection', (socket) => {
   console.log('User connected to Socket.IO.');
-  
+
   // Log disconnection reasons
   socket.on('disconnect', (reason) => {
     console.log(`Socket disconnected: ${socket.id}. Reason: ${reason}`);
   });
-  
+
   socket.on('error', (error) => {
     console.error(`Socket error on ${socket.id}:`, error);
   });
@@ -60,10 +65,10 @@ server.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
   const listenerHandle = startContractListener(io, { pollIntervalMs: 3000, lookbackBlocks: 3 });
 
-// graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('SIGINT received - stopping listener and server...');
-  if (listenerHandle && typeof listenerHandle.stop === 'function') listenerHandle.stop();
-  server.close(() => process.exit(0));
-});
+  // graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('SIGINT received - stopping listener and server...');
+    if (listenerHandle && typeof listenerHandle.stop === 'function') listenerHandle.stop();
+    server.close(() => process.exit(0));
+  });
 });

@@ -6,7 +6,9 @@ const { Readable } = require('stream');
 const pinataSDK = require('@pinata/sdk');
 const auth = require('../middleware/authMiddleware');
 
-const pinata = new pinataSDK({ pinataJWTKey: process.env.PINATA_JWT });
+const pinata = (process.env.PINATA_API_KEY && process.env.PINATA_API_SECRET)
+  ? new pinataSDK(process.env.PINATA_API_KEY, process.env.PINATA_API_SECRET)
+  : new pinataSDK({ pinataJWTKey: process.env.PINATA_JWT });
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -25,7 +27,7 @@ router.post('/', [auth, upload.single('productImage')], async (req, res) => {
     res.json({ imageUrl: imageUrl, ipfsHash: result.IpfsHash });
   } catch (err) {
     console.error("Pinata upload error:", err);
-    res.status(500).send('Server error during image upload.');
+    res.status(500).json({ msg: err.message || 'Server error during image upload.' });
   }
 });
 

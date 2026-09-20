@@ -23,8 +23,16 @@ async function main() {
   
   // --- 2. Update backend/.env file ---
   const backendEnvPath = path.resolve(__dirname, '../../backend/.env');
+  const backendEnvExamplePath = path.resolve(__dirname, '../../backend/.env.example');
   try {
-    const envContent = fs.readFileSync(backendEnvPath, 'utf8');
+    let envContent = '';
+    if (fs.existsSync(backendEnvPath)) {
+      envContent = fs.readFileSync(backendEnvPath, 'utf8');
+    } else if (fs.existsSync(backendEnvExamplePath)) {
+      envContent = fs.readFileSync(backendEnvExamplePath, 'utf8');
+      console.log(`Created backend/.env from backend/.env.example`);
+    }
+
     const contractAddressKey = 'CONTRACT_ADDRESS';
     const newEnvLine = `${contractAddressKey}="${newAddress}"`;
     
@@ -36,7 +44,7 @@ async function main() {
       newEnvContent = envContent.replace(regex, newEnvLine);
     } else {
       // Append a new line if it doesn't exist
-      newEnvContent = envContent + `\n${newEnvLine}`;
+      newEnvContent = envContent ? (envContent.endsWith('\n') ? `${envContent}${newEnvLine}\n` : `${envContent}\n${newEnvLine}\n`) : `${newEnvLine}\n`;
     }
 
     fs.writeFileSync(backendEnvPath, newEnvContent, 'utf8');

@@ -26,6 +26,7 @@ async function handleMetaMaskLogin(buttonElement) {
     setButtonLoading(buttonElement, true, 'Connecting...');
     
     try {
+        await ensureSepoliaNetwork();
         const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
         await provider.send("eth_requestAccounts", []);
         const signer = provider.getSigner();

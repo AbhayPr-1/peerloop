@@ -100,7 +100,8 @@ async function fetchProducts(waitForSync = false) { // Added parameter
             console.log("DEBUG: fetchProducts: Executing without delay.");
         }
 
-        const productsFromChain = await marketplaceContract.getAllForSaleProducts();
+        const productsFromChain = await readOnlyContract.getAllForSaleProducts();
+
         
         // DEBUG: Log the result count to ensure we are getting fresh data.
         console.log(`DEBUG: fetchProducts: Received ${productsFromChain.length} items from contract.`);
@@ -152,6 +153,7 @@ async function buyNow(product, buttonElement = null) {
   if (buttonElement) setButtonLoading(buttonElement, true, 'Paying...');
 
   try {
+    await ensureSepoliaNetwork();
     const priceInWei = ethers.utils.parseEther(product.price.toString());
     showMessage("Sending transaction... Please check your wallet.");
     
@@ -195,6 +197,7 @@ async function deleteProduct(productId, buttonElement) {
 
   try {
       showMessage("Sending transaction... Please check your wallet.");
+      await ensureSepoliaNetwork();
       const tx = await marketplaceContract.deleteProduct(productId);
       setButtonLoading(buttonElement, true, 'Confirming...');
       await tx.wait(); 
