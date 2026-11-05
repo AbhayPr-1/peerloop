@@ -1,13 +1,37 @@
-# Sample Hardhat Project
+# PeerLoop Smart Contract
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+This project uses Hardhat 3 to compile and deploy the PeerLoop marketplace contract.
 
-Try running some of the following tasks:
+## Install
 
 ```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.js
+npm install
 ```
+
+For Sepolia deployment, set `SEPOLIA_RPC_URL` and a valid 32-byte `PRIVATE_KEY` in `.env`.
+The Sepolia network is enabled only when both values are configured.
+
+## Compile and test
+
+```shell
+npm run compile
+npm test
+```
+
+## Deploy
+
+Deploy to Sepolia:
+
+```shell
+npm run deploy
+```
+
+For a local deployment, start a local Hardhat node in one terminal and deploy from another:
+
+```shell
+npx hardhat node
+npm run deploy:local
+```
+
+After deployment, the script updates the marketplace address in `frontend/js/contract.js`
+and `backend/.env`.

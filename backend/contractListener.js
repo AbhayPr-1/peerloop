@@ -6,7 +6,12 @@ require('dotenv').config();
 const RPC_URL = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || process.env.SEPOLIA_RPC;
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
 
+function hasPlaceholderRpcUrl(url) {
+  return typeof url !== 'string' || !url.trim() || url.includes('your_alchemy_key') || url.includes('your_') || url.includes('example') || url.includes('placeholder');
+}
+
 if (!RPC_URL) console.error('Missing SEPOLIA_RPC_URL in backend/.env');
+if (hasPlaceholderRpcUrl(RPC_URL)) console.warn('SEPOLIA_RPC_URL is unset or still using a placeholder value. Contract listener will be skipped until a valid RPC URL is configured.');
 if (!CONTRACT_ADDRESS) console.error('Missing CONTRACT_ADDRESS in backend/.env');
 
 /* ABI (events + useful functions) */
@@ -69,12 +74,12 @@ function startContractListener(io, opts = {}) {
   const lookbackBlocks = typeof opts.lookbackBlocks === 'number' ? opts.lookbackBlocks : 2;
   const dedupeCacheSize = opts.dedupeCacheSize || 1000;
 
-  if (!RPC_URL || !CONTRACT_ADDRESS) {
-    console.error('Contract listener not started: missing RPC_URL or CONTRACT_ADDRESS.');
+  if (!RPC_URL || !CONTRACT_ADDRESS || hasPlaceholderRpcUrl(RPC_URL)) {
+    console.warn('Contract listener not started: missing or placeholder RPC_URL/CONTRACT_ADDRESS.');
     return { stop: () => {} };
   }
 
-  const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
   const contract = new ethers.Contract(CONTRACT_ADDRESS, MARKETPLACE_ABI, provider);
 
   let stopped = false;

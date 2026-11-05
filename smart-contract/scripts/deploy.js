@@ -1,8 +1,10 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { network } from 'hardhat';
 
 async function main() {
-  const marketplace = await hre.ethers.deployContract("Marketplace");
+  const { ethers } = await network.connect();
+  const marketplace = await ethers.deployContract("Marketplace");
   await marketplace.waitForDeployment();
 
   const newAddress = marketplace.target;

@@ -7,9 +7,9 @@ const dns = require('dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 // optional debug (keep while testing)
-console.log('DEBUG: SEPOLIA_RPC_URL=', !!process.env.SEPOLIA_RPC_URL);
-console.log('DEBUG: CONTRACT_ADDRESS=', !!process.env.CONTRACT_ADDRESS);
-console.log('DEBUG: MONGO_URI=', !!process.env.MONGO_URI);
+console.log('DEBUG: SEPOLIA_RPC_URL configured =', !!process.env.SEPOLIA_RPC_URL, process.env.SEPOLIA_RPC_URL && process.env.SEPOLIA_RPC_URL.includes('your_') ? '(placeholder)' : '');
+console.log('DEBUG: CONTRACT_ADDRESS configured =', !!process.env.CONTRACT_ADDRESS);
+console.log('DEBUG: MONGO_URI configured =', !!process.env.MONGO_URI);
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -64,6 +64,9 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
   const listenerHandle = startContractListener(io, { pollIntervalMs: 3000, lookbackBlocks: 3 });
+  if (!process.env.SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL.includes('your_')) {
+    console.warn('Skipping blockchain listener because SEPOLIA_RPC_URL is still a placeholder. Add a real RPC URL in backend/.env to enable live contract events.');
+  }
 
   // graceful shutdown
   process.on('SIGINT', async () => {

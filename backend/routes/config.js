@@ -7,10 +7,14 @@ const router = express.Router();
 // to mitigate the risk of its exposure in the browser.
 const READ_ONLY_RPC_URL = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || process.env.SEPOLIA_RPC;
 
+function hasPlaceholderRpcUrl(url) {
+  return typeof url !== 'string' || !url.trim() || url.includes('your_alchemy_key') || url.includes('your_') || url.includes('example') || url.includes('placeholder');
+}
+
 // --- GET RPC URL ---
 router.get('/rpc-url', (req, res) => {
-  if (!READ_ONLY_RPC_URL) {
-    console.error('RPC URL not configured on server.');
+  if (!READ_ONLY_RPC_URL || hasPlaceholderRpcUrl(READ_ONLY_RPC_URL)) {
+    console.error('RPC URL not configured on server. Add a real Sepolia RPC URL to backend/.env to enable blockchain features.');
     return res.status(500).json({ msg: 'RPC URL not configured on server.' });
   }
   // This is the only exposed RPC URL, so it should be a public/read-only key.
