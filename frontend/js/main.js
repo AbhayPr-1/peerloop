@@ -138,22 +138,27 @@ document.getElementById('nav-purchased-btn').addEventListener('click', () => ren
 
 // --- Marketplace Filter Event Listeners ---
 document.getElementById('search-input').addEventListener('input', filterAndSortProducts);
+const priceFilter = document.getElementById('price-filter');
+priceFilter.addEventListener('input', filterAndSortProducts);
+document.getElementById('available-only').addEventListener('change', filterAndSortProducts);
 
 // --- Sell Form & Image Uploader Event Listeners ---
 const uploader = document.getElementById('image-uploader');
 const fileInput = document.getElementById('product-photo');
-uploader.addEventListener('click', () => fileInput.click());
+let selectedListingImages = [];
+let listingPreviewUrls = [];
+uploader.addEventListener('click', e => { if (!e.target.closest('label')) fileInput.click(); });
 uploader.addEventListener('dragover', e => { e.preventDefault(); uploader.classList.add('drag-over'); });
 uploader.addEventListener('dragleave', () => uploader.classList.remove('drag-over'));
 uploader.addEventListener('drop', e => {
-    e.preventDefault();
-    uploader.classList.remove('drag-over');
-    if (e.dataTransfer.files.length > 0) {
-        fileInput.files = e.dataTransfer.files;
-        handleFileChange(e.dataTransfer.files[0]);
-    }
+  e.preventDefault();
+  uploader.classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) handleFileChange(e.dataTransfer.files);
 });
-fileInput.addEventListener('change', () => handleFileChange(fileInput.files[0]));
+fileInput.addEventListener('change', () => {
+  handleFileChange(fileInput.files);
+  fileInput.value = '';
+});
 document.getElementById("create-listing-form").addEventListener("submit", createListingFormHandler);
 
 async function renderProfileSection(type, retryCount = 0) {
@@ -229,20 +234,74 @@ async function renderProfileSection(type, retryCount = 0) {
   }
 }
 
-function handleFileChange(file) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { showMessage("Invalid file type."); fileInput.value = ""; return; }
-    if (file.size > 5 * 1024 * 1024) { showMessage("Image too large (Max 5MB)."); fileInput.value = ""; return; }
-    document.getElementById('file-name-display').textContent = file.name;
-    const reader = new FileReader();
-    reader.onload = ev => {
-        const preview = document.getElementById('image-preview');
-        preview.src = ev.target.result;
-        preview.classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
+function handleFileChange(files) {
+  const incoming = Array.from(files || []);
+  if (!incoming.length) return;
+  const acceptedTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  const rejected = [];
+  for (const file of incoming) {
+    if (!acceptedTypes.has((file.type || '').toLowerCase())) { rejected.push(`${file.name}: use a JPEG, PNG, GIF or WebP image.`); continue; }
+    if (file.size > 5 * 1024 * 1024) { rejected.push(`${file.name}: image exceeds 5 MB.`); continue; }
+    if (selectedListingImages.length >= 8) { rejected.push('You can select up to 8 images.'); break; }
+    const duplicate = selectedListingImages.some(existing => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified);
+    if (!duplicate) selectedListingImages.push(file);
+  }
+  renderListingImagePreviews();
+  if (rejected.length) showMessage(rejected.join(' '));
 }
 
+function renderListingImagePreviews() {
+  listingPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+  listingPreviewUrls = [];
+  const wrapper = document.getElementById('image-preview');
+  const grid = document.getElementById('image-preview-grid');
+  const nameDisplay = document.getElementById('file-name-display');
+  grid.replaceChildren();
+  if (!selectedListingImages.length) {
+    wrapper.classList.add('hidden');
+    nameDisplay.textContent = '';
+    return;
+  }
+  wrapper.classList.remove('hidden');
+  nameDisplay.textContent = `${selectedListingImages.length} image${selectedListingImages.length === 1 ? '' : 's'} selected`;
+  selectedListingImages.forEach((file, index) => {
+    const card = document.createElement('div');
+    card.className = 'image-preview-card';
+    const image = document.createElement('img');
+    image.src = URL.createObjectURL(file);
+    image.alt = file.name;
+    listingPreviewUrls.push(image.src);
+    card.appendChild(image);
+    const name = document.createElement('span');
+    name.className = 'image-preview-name';
+    name.textContent = file.name;
+    card.appendChild(name);
+    if (index === 0) {
+      const cover = document.createElement('span');
+      cover.className = 'image-preview-cover';
+      cover.textContent = 'COVER';
+      card.appendChild(cover);
+    }
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'image-preview-remove';
+    remove.textContent = '\u00d7';
+    remove.title = `Remove ${file.name}`;
+    remove.setAttribute('aria-label', `Remove ${file.name}`);
+    remove.addEventListener('click', () => {
+      selectedListingImages.splice(index, 1);
+      renderListingImagePreviews();
+    });
+    card.appendChild(remove);
+    grid.appendChild(card);
+  });
+}
+
+function clearListingImageSelection() {
+  selectedListingImages = [];
+  fileInput.value = '';
+  renderListingImagePreviews();
+}
 function getListingErrorMessage(error) {
   if (error.code === 'USER_REJECTED_TRANSACTION' || error.code === 4001) {
     return "Transaction was cancelled in your wallet.";
@@ -284,11 +343,12 @@ async function createListingFormHandler(e) {
   const description = document.getElementById("product-desc").value.trim();
   const priceString = document.getElementById("product-price").value;
   const category = document.querySelector("#product-category input[type='hidden']").value;
-  const file = document.getElementById("product-photo").files[0];
+  const imagesToUpload = [...selectedListingImages]
+  const file = imagesToUpload[0];
 
   if (!name || !description || !priceString || !file) {
     setButtonLoading(buttonElement, false);
-    return showMessage("Please fill all fields and upload an image.");
+    return showMessage("Please fill all fields and select at least one image.");
   }
   const priceNumber = parseFloat(priceString);
   if (isNaN(priceNumber) || priceNumber <= 0) {
@@ -299,28 +359,32 @@ async function createListingFormHandler(e) {
   let listingConfirmed = false;
   try {
     await ensureSepoliaNetwork(walletProvider);
-    setButtonLoading(buttonElement, true, 'Uploading Image...');
-    const formData = new FormData();
-    formData.append('productImage', file);
-    const uploadResponse = await fetch(`${API_URL}/api/upload`, {
-      method: 'POST',
-      headers: { 'x-auth-token': localStorage.getItem('token') },
-      body: formData
-    });
-    if (!uploadResponse.ok) {
-      let errorMsg = 'Image upload failed.';
-      try {
-        const err = await uploadResponse.json();
-        errorMsg = err.msg || err.error || errorMsg;
-      } catch (_) {
-        const text = await uploadResponse.text();
-        if (text) errorMsg = text;
+    const imageUrls = [];
+    for (let index = 0; index < imagesToUpload.length; index++) {
+      setButtonLoading(buttonElement, true, `Uploading image ${index + 1} of ${imagesToUpload.length}...`);
+      const formData = new FormData();
+      formData.append('productImage', imagesToUpload[index]);
+      const uploadResponse = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        headers: { 'x-auth-token': localStorage.getItem('token') },
+        body: formData
+      });
+      if (!uploadResponse.ok) {
+        let errorMsg = 'Image upload failed.';
+        try {
+          const err = await uploadResponse.json();
+          errorMsg = err.msg || err.error || errorMsg;
+        } catch (_) {
+          const text = await uploadResponse.text();
+          if (text) errorMsg = text;
+        }
+        throw new Error(errorMsg);
       }
-      throw new Error(errorMsg);
+      const uploadData = await uploadResponse.json();
+      if (!uploadData.imageUrl) throw new Error(`Image ${index + 1} did not return a usable URL.`);
+      imageUrls.push(uploadData.imageUrl);
     }
-    const uploadData = await uploadResponse.json();
-    const imageUrl = uploadData.imageUrl; 
-
+    const imageUrl = JSON.stringify(imageUrls);
     setButtonLoading(buttonElement, true, 'Listing on Blockchain...');
     const priceInWei = ethers.utils.parseEther(priceString);
     showMessage("Sending transaction... Please check your wallet.");
@@ -360,8 +424,7 @@ async function createListingFormHandler(e) {
     showMessage("Product listed successfully!");
     
     document.getElementById("create-listing-form").reset();
-    document.getElementById("image-preview").classList.add("hidden");
-    document.getElementById('file-name-display').textContent = '';
+    clearListingImageSelection();
     const categoryContainer = document.getElementById('product-category');
     categoryContainer.querySelector('span').textContent = 'Electronics';
     categoryContainer.querySelector('input[type="hidden"]').value = 'electronics';
@@ -410,3 +473,107 @@ async function renderSellerProfile(sellerId, sellerName) {
     grid.replaceChildren(errorMessage);
   }
 }
+// Shared visual account navigation; delegates to the existing profile renderer.
+document.querySelectorAll('[data-profile-view]').forEach((button) => {
+  button.addEventListener('click', () => renderProfileSection(button.dataset.profileView));
+});
+
+document.getElementById('nav-profile-btn').addEventListener('click', (event) => {
+  event.preventDefault();
+  document.getElementById('profile-dropdown-menu').classList.add('hidden');
+  if (!currentUser) return showAuthModal();
+  showSection('user-profile-tab');
+});
+
+let accountDashboardHistory = null;
+let accountDashboardView = 'purchased';
+
+async function renderUserProfileDashboard() {
+  if (!currentUser) return showAuthModal();
+  const name = currentUser.name || 'PeerLoop member';
+  const wallet = currentUser.walletAddress || '';
+  const avatarText = name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'P';
+  document.getElementById('profile-display-name').textContent = name;
+  document.getElementById('profile-avatar').textContent = avatarText;
+  document.getElementById('profile-wallet-address').textContent = wallet;
+  document.getElementById('profile-activity-rows').innerHTML = '<tr><td colspan="6" class="profile-empty">Loading on-chain activity.</td></tr>';
+  accountDashboardHistory = null;
+  accountDashboardView = 'purchased';
+  document.querySelectorAll('[data-profile-table]').forEach(button => button.classList.toggle('active', button.dataset.profileTable === accountDashboardView));
+  const [historyResult, listingResult] = await Promise.allSettled([
+    getWalletTransactionHistory(wallet),
+    loadProductsFromChain()
+  ]);
+  const historyOk = historyResult.status === 'fulfilled';
+  const listingOk = listingResult.status === 'fulfilled';
+  const history = historyOk ? historyResult.value : { purchased: [], sold: [] };
+  accountDashboardHistory = history;
+  const address = wallet.toLowerCase();
+  const listings = listingOk ? listingResult.value.filter(item => item.seller.toLowerCase() === address && !item.isSold) : [];
+  const ownedItems = historyOk ? history.purchased.filter(item => !history.sold.some(sold => sold._id === item._id && Number(sold.blockNumber) > Number(item.blockNumber))) : [];
+  const ownedValue = ownedItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
+  document.getElementById('profile-owned-value').textContent = historyOk ? `${ownedValue.toFixed(4)} ETH` : 'Unavailable';
+  document.getElementById('profile-listing-count').textContent = listingOk ? String(listings.length) : 'Unavailable';
+  document.getElementById('profile-sold-count').textContent = historyOk ? String(history.sold.length) : 'Unavailable';
+  paintAccountActivityRows();
+  if (!historyOk || !listingOk) {
+    const issues = [];
+    if (!historyOk) issues.push('transaction history');
+    if (!listingOk) issues.push('active listings');
+    showMessage(`Some profile data could not be loaded (${issues.join(' and ')}).`, 4500);
+  }
+}
+
+function paintAccountActivityRows() {
+  const tbody = document.getElementById('profile-activity-rows');
+  if (!tbody) return;
+  if (!accountDashboardHistory) {
+    tbody.innerHTML = '<tr><td colspan="6" class="profile-empty">Profile activity is not available yet.</td></tr>';
+    return;
+  }
+  const isSold = accountDashboardView === 'sold';
+  const data = isSold
+    ? accountDashboardHistory.sold
+    : accountDashboardHistory.purchased.filter(item => !accountDashboardHistory.sold.some(sold => sold._id === item._id && Number(sold.blockNumber) > Number(item.blockNumber)));
+  tbody.replaceChildren();
+  if (!data.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = `<td colspan="6" class="profile-empty">${isSold ? 'No completed sales found for this wallet.' : 'No purchased items found for this wallet.'}</td>`;
+    tbody.appendChild(row);
+    return;
+  }
+  data.forEach(item => {
+    const row = document.createElement('tr');
+    const imageCell = document.createElement('td');
+    const itemCell = document.createElement('div');
+    itemCell.className = 'profile-item';
+    const imageGallery = createProductImageGallery(item.imageUrl, item.name || 'Marketplace item', 'compact');
+    const title = document.createElement('span');
+    title.textContent = item.name || 'Marketplace item';
+    itemCell.append(imageGallery, title);
+    imageCell.appendChild(itemCell);
+    const nameCell = document.createElement('td'); nameCell.textContent = item.name || 'Marketplace item';
+    const walletCell = document.createElement('td'); walletCell.className = 'profile-wallet-cell'; walletCell.textContent = isSold ? (item.buyer || '') : (item.seller || '');
+    walletCell.title = walletCell.textContent;
+    const dateCell = document.createElement('td');
+    dateCell.textContent = item.soldAt && !Number.isNaN(Date.parse(item.soldAt)) ? new Date(item.soldAt).toLocaleDateString() : '-';
+    const priceCell = document.createElement('td'); priceCell.textContent = `${(Number(item.price) || 0).toFixed(4)} ETH`;
+    const linkCell = document.createElement('td');
+    if (/^0x[a-f0-9]{64}$/i.test(item.transactionHash || '')) {
+      const link = document.createElement('a');
+      link.href = `https://sepolia.etherscan.io/tx/${item.transactionHash}`;
+      link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'View';
+      linkCell.appendChild(link);
+    } else linkCell.textContent = '-';
+    row.append(imageCell, nameCell, walletCell, dateCell, priceCell, linkCell);
+    tbody.appendChild(row);
+  });
+}
+
+document.querySelectorAll('[data-profile-table]').forEach(button => {
+  button.addEventListener('click', () => {
+    accountDashboardView = button.dataset.profileTable;
+    document.querySelectorAll('[data-profile-table]').forEach(tab => tab.classList.toggle('active', tab === button));
+    paintAccountActivityRows();
+  });
+});

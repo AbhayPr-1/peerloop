@@ -15,7 +15,7 @@ function Particle() {
   this.size = Math.random() * 2 + 1;
   this.speedX = (Math.random() - 0.5) * 0.5;
   this.speedY = (Math.random() - 0.5) * 0.5;
-  this.color = `rgba(0,229,255,${Math.random()*0.5+0.3})`;
+  this.color = `rgba(180,154,255,${Math.random()*0.46+0.22})`;
 }
 Particle.prototype.update = function() {
   this.x += this.speedX; this.y += this.speedY;
@@ -34,7 +34,7 @@ function connectParticles() {
     for (let b=a+1;b<particles.length;b++) {
       const dist = Math.hypot(particles[a].x - particles[b].x, particles[a].y - particles[b].y);
       if (dist < maxDistance) {
-        ctx.strokeStyle = `rgba(0,229,255,${(maxDistance-dist)/maxDistance*0.4})`;
+        ctx.strokeStyle = `rgba(164,142,246,${(maxDistance-dist)/maxDistance*0.24})`;
         ctx.beginPath();
         ctx.moveTo(particles[a].x, particles[a].y);
         ctx.lineTo(particles[b].x, particles[b].y);
@@ -59,3 +59,16 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 animateParticles();
+// Subtle pointer parallax on visual cards only; no interaction or data flow changes.
+if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && window.matchMedia('(pointer: fine)').matches) {
+  document.querySelectorAll('.card-neon-border').forEach((card) => {
+    card.addEventListener('pointermove', (event) => {
+      if (card.closest('#hero')) return;
+      const rect = card.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width - 0.5;
+      const y = (event.clientY - rect.top) / rect.height - 0.5;
+      card.style.transform = `perspective(900px) rotateX(${(-y * 2.4).toFixed(2)}deg) rotateY(${(x * 2.4).toFixed(2)}deg) translateY(-3px)`;
+    });
+    card.addEventListener('pointerleave', () => { card.style.transform = ''; });
+  });
+}

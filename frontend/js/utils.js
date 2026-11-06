@@ -18,8 +18,18 @@ const IMAGE_PLACEHOLDER = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#17212b"/><text x="50%" y="50%" fill="#94a3b8" font-family="sans-serif" font-size="24" text-anchor="middle" dominant-baseline="middle">Image unavailable</text></svg>'
 )}`;
 
+function getProductImageUrls(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(item => String(item || '').trim()).filter(Boolean);
+  } catch (_) {}
+  return [raw];
+}
 function getImageSources(value) {
-  const rawValue = String(value || '').trim();
+  const rawValue = getProductImageUrls(value)[0] || '';
   if (!rawValue) return [IMAGE_PLACEHOLDER];
 
   try {
@@ -96,6 +106,53 @@ function setResilientImage(image, value) {
   }
 }
 
+function createProductImageGallery(value, altText = '', variant = '', onMainClick = null) {
+  const urls = getProductImageUrls(value);
+  const gallery = document.createElement('div');
+  gallery.className = `product-image-gallery${variant ? ` ${variant}` : ''}`;
+  let mainImage = document.createElement('img');
+  mainImage.className = 'gallery-main';
+  mainImage.alt = altText;
+  gallery.appendChild(mainImage);
+  setResilientImage(mainImage, urls[0] || '');
+
+  if (typeof onMainClick === 'function') {
+    gallery.addEventListener('click', event => {
+      if (event.target.closest('.gallery-thumbnails')) return;
+      if (event.target.closest('.gallery-main')) onMainClick(event);
+    });
+  }
+
+  if (urls.length > 1) {
+    const thumbnails = document.createElement('div');
+    thumbnails.className = 'gallery-thumbnails';
+    urls.forEach((url, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `gallery-thumb${index === 0 ? ' active' : ''}`;
+      button.setAttribute('aria-label', `Show image ${index + 1} of ${urls.length}`);
+      button.title = `Image ${index + 1} of ${urls.length}`;
+      const thumb = document.createElement('img');
+      thumb.alt = '';
+      setResilientImage(thumb, url);
+      button.appendChild(thumb);
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const replacement = document.createElement('img');
+        replacement.className = 'gallery-main';
+        replacement.alt = altText;
+        mainImage.replaceWith(replacement);
+        mainImage = replacement;
+        setResilientImage(mainImage, url);
+        thumbnails.querySelectorAll('.gallery-thumb').forEach((item, itemIndex) => item.classList.toggle('active', itemIndex === index));
+      });
+      thumbnails.appendChild(button);
+    });
+    gallery.appendChild(thumbnails);
+  }
+  return gallery;
+}
 async function fetchWithTimeout(url, options = {}, timeoutMs = 5000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -228,7 +285,7 @@ function createProfileProductCard(product, context) {
     }
 
     card.innerHTML = `
-        <img alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4">
+        <div class="profile-image-gallery-slot"></div>
         <h3 class="text-2xl font-bold text-neon-blue mb-2">${escapeHtml(product.name)}</h3>
         ${contextInfo}
         ${historyInfo}
@@ -239,7 +296,7 @@ function createProfileProductCard(product, context) {
         </div>
         ${actionButtons}
     `;
-    setResilientImage(card.querySelector('img'), product.imageUrl);
+    card.querySelector('.profile-image-gallery-slot').replaceWith(createProductImageGallery(product.imageUrl, product.name, 'profile'));
 
     if (context === 'listings') {
         const saveCategoryBtn = card.querySelector('.save-listing-category-btn');

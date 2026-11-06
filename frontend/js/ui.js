@@ -2,7 +2,7 @@
 let currentConfirmAction = null;
 
 function showSection(sectionId) {
-  const sections = ["hero", "services", "marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab", "seller-profile-tab"];
+  const sections = ["hero", "services", "marketplace", "sell-tab", "cart-tab", "my-listings-tab", "sold-history-tab", "purchase-history-tab", "seller-profile-tab", "user-profile-tab"];
   const navHomeBtn = document.getElementById('nav-home-btn');
   const navAboutBtn = document.getElementById('nav-about-btn');
   const navExploreBtn = document.getElementById('nav-explore-btn');
@@ -40,6 +40,7 @@ function showSection(sectionId) {
   if (sectionId === 'marketplace') {
       fetchProducts(false);
   }
+  if (sectionId === 'user-profile-tab') renderUserProfileDashboard();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -106,7 +107,7 @@ function showQuickView(product) {
     content.innerHTML = `
         <button id="close-quick-view-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-            <img alt="${escapeHtml(product.name)}" class="w-full h-auto object-cover rounded-xl">
+            <div class="quick-view-gallery-slot"></div>
             <div class="flex flex-col h-full">
                 <h3 class="text-4xl font-bold text-neon-blue mb-4">${escapeHtml(product.name)}</h3>
                 <p class="text-gray-400 mb-4 flex-grow">${escapeHtml(product.description)}</p>
@@ -121,7 +122,7 @@ function showQuickView(product) {
             </div>
         </div>
     `;
-    setResilientImage(content.querySelector('img'), product.imageUrl);
+    content.querySelector('.quick-view-gallery-slot').appendChild(createProductImageGallery(product.imageUrl, product.name, 'detail'));
 
     document.getElementById('close-quick-view-btn').addEventListener('click', closeQuickView);
     

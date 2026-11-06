@@ -25,7 +25,7 @@ function createProductCard(product) {
   }
 
   card.innerHTML = `
-    <img alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4 cursor-pointer quick-view-trigger">
+    <div class="product-gallery-slot"></div>
     <h3 class="text-2xl font-bold text-neon-blue mb-2">${escapeHtml(product.name)}</h3>
     <p class="text-gray-400 flex-1 mb-4">${escapeHtml(product.description)}</p>
     <div class="text-sm mb-2" style="overflow-wrap: break-word;">
@@ -35,7 +35,8 @@ function createProductCard(product) {
       <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
       <span class="text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
     </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
-  setResilientImage(card.querySelector('img'), product.imageUrl);
+  const imageGallery = createProductImageGallery(product.imageUrl, product.name, 'marketplace', () => showQuickView(product));
+  card.querySelector('.product-gallery-slot').replaceWith(imageGallery);
 
   const buyNowBtn = card.querySelector(".buy-now-btn");
   if (buyNowBtn) {
@@ -65,10 +66,6 @@ function createProductCard(product) {
     });
   }
   
-  const quickViewTrigger = card.querySelector('.quick-view-trigger');
-  if(quickViewTrigger) {
-    quickViewTrigger.addEventListener('click', () => showQuickView(product));
-  }
   return card;
 }
 
@@ -169,9 +166,23 @@ function filterAndSortProducts() {
   const q = (document.getElementById("search-input")?.value || "").trim().toLowerCase();
   const cat = document.querySelector("#category-filter input[type='hidden']")?.value || "all";
   const sortBy = document.querySelector("#sort-by input[type='hidden']")?.value || "date-desc";
+  const priceControl = document.getElementById('price-filter');
+  if (priceControl && allProducts.length) {
+    const highest = Math.max(0.001, ...allProducts.map(p => Number(p.price) || 0));
+    const bound = Math.ceil(highest * 1000) / 1000;
+    const oldBound = Number(priceControl.dataset.bound || priceControl.max);
+    if (!priceControl.dataset.bound || Number(priceControl.value) >= oldBound - 0.001) priceControl.value = String(bound);
+    priceControl.max = String(bound);
+    priceControl.dataset.bound = String(bound);
+    document.getElementById('price-filter-max-label').textContent = `${bound.toFixed(3)} ETH`;
+    const output = document.getElementById('price-filter-value');
+    output.textContent = Number(priceControl.value) >= bound - 0.001 ? 'Any price' : `${Number(priceControl.value).toFixed(3)} ETH`;
+  }
   let list = [...allProducts];
   if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   if (cat !== "all") list = list.filter(p => p.category === cat);
+  if (document.getElementById('available-only')?.checked) list = list.filter(p => !p.isSold);
+  if (priceControl) list = list.filter(p => Number(p.price) <= Number(priceControl.value) + 1e-9);
   switch (sortBy) {
     case "price-asc": list.sort((a, b) => Number(a.price) - Number(b.price)); break;
     case "price-desc": list.sort((a, b) => Number(b.price) - Number(a.price)); break;
@@ -179,10 +190,10 @@ function filterAndSortProducts() {
     case "name-desc": list.sort((a, b) => b.name.localeCompare(a.name)); break;
     default: break;
   }
+  const count = document.getElementById('product-count');
+  if (count) count.textContent = `${list.length} ${list.length === 1 ? 'listing' : 'listings'}`;
   renderProducts(list);
-}
-
-async function buyNow(product, buttonElement = null) {
+}async function buyNow(product, buttonElement = null) {
   if (!currentUser) return showAuthModal();
   if (!marketplaceContract || !signer) return showMessage("Connecting to contract... Please log in again.");
 

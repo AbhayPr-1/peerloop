@@ -63,12 +63,12 @@ function renderCart() {
     const el = document.createElement('div');
     el.className = 'flex items-center space-x-4 bg-gray-800 p-4 rounded-xl card-neon-border';
     el.innerHTML = `
-      <img alt="${escapeHtml(item.name)}" class="w-16 h-16 object-cover rounded-md">
+      <div class="cart-image-gallery-slot"></div>
       <div class="flex-grow">
         <h4 class="text-lg font-bold text-neon-blue">${escapeHtml(item.name)}</h4><p>${(Number.isFinite(itemPrice) ? itemPrice : 0).toFixed(4)} ETH</p>
       </div>
       <button class="remove-from-cart-btn text-red-500 hover:text-red-400 transition-colors" data-product-id="${escapeHtml(item._id)}">✖</button>`;
-    setResilientImage(el.querySelector('img'), item.imageUrl);
+    el.querySelector('.cart-image-gallery-slot').replaceWith(createProductImageGallery(item.imageUrl, item.name, 'cart'));
     cont.appendChild(el);
   });
   totalEl.textContent = `${total.toFixed(4)} ETH`;
