@@ -10,18 +10,26 @@ function showSection(sectionId) {
 
   sections.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.classList.toggle("hidden", id !== sectionId);
+    if (!el) return;
+    const isActive = id === sectionId;
+    el.classList.toggle("hidden", !isActive);
+    if (id !== 'hero') {
+      el.classList.toggle('hidden-section', !isActive);
+      el.classList.toggle('visible-section', isActive);
+    }
   });
 
   const servicesSection = document.getElementById('services');
+  const showServices = sectionId === 'hero';
+  servicesSection.classList.toggle('hidden', !showServices);
+  servicesSection.classList.toggle('hidden-section', !showServices);
+  servicesSection.classList.toggle('visible-section', showServices);
   if (sectionId === 'hero') {
-    servicesSection.classList.remove('hidden');
     navHomeBtn.classList.add('hidden');
     navAboutBtn.classList.remove('hidden');
     navExploreBtn.classList.add('hidden');
     navSellBtn.classList.add('hidden');
   } else {
-    servicesSection.classList.add('hidden');
     navHomeBtn.classList.remove('hidden');
     navAboutBtn.classList.add('hidden');
     navExploreBtn.classList.remove('hidden');
@@ -82,11 +90,9 @@ function showQuickView(product) {
     const modal = document.getElementById('quick-view-modal');
     const content = document.getElementById('quick-view-content');
 
-    // *** UPDATED: Format the address for display ***
     const sellerAddress = product.seller;
     const sellerDisplay = (product.seller && product.seller.name) ? product.seller.name : formatAddress(sellerAddress);
     
-    const imageUrl = safeImageUrl(product.imageUrl);
     const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
 
     let actionButtons = "";
@@ -100,7 +106,7 @@ function showQuickView(product) {
     content.innerHTML = `
         <button id="close-quick-view-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-            <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" class="w-full h-auto object-cover rounded-xl">
+            <img alt="${escapeHtml(product.name)}" class="w-full h-auto object-cover rounded-xl">
             <div class="flex flex-col h-full">
                 <h3 class="text-4xl font-bold text-neon-blue mb-4">${escapeHtml(product.name)}</h3>
                 <p class="text-gray-400 mb-4 flex-grow">${escapeHtml(product.description)}</p>
@@ -115,6 +121,7 @@ function showQuickView(product) {
             </div>
         </div>
     `;
+    setResilientImage(content.querySelector('img'), product.imageUrl);
 
     document.getElementById('close-quick-view-btn').addEventListener('click', closeQuickView);
     

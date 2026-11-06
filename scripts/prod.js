@@ -28,39 +28,63 @@ log('\n=========================================================', colors.cyan);
 log('              🚀 STARTING PEERLOOP PRODUCTION 🚀              ', colors.bold + colors.magenta);
 log('=========================================================\n', colors.cyan);
 
-log('🌐 Frontend Marketplace: http://localhost:3000 (Production)', colors.bold + colors.green);
-log('🔌 Backend API Server:   http://localhost:5001 (Production)\n', colors.bold + colors.cyan);
-log('   Health Check: http://localhost:5001/api/config/rpc-url', colors.cyan);
+const backendPort = process.env.PORT || 5001;
+const frontendPort = process.env.FRONTEND_PORT || 3000;
+
+log(`🌐 Frontend Marketplace: http://localhost:${frontendPort} (Production)`, colors.bold + colors.green);
+log(`🔌 Backend API Server:   http://localhost:${backendPort} (Production)\n`, colors.bold + colors.cyan);
+log(`   Health Check: http://localhost:${backendPort}/api/config/rpc-url`, colors.cyan);
 log('---------------------------------------------------------', colors.cyan);
 
-// Use a single shell command string with proper quoting for cross-platform compatibility
-const command = 'npx concurrently -n "BACKEND,FRONTEND" -c "cyan,magenta" --kill-others-on-fail "npm start" "npx serve frontend -l 3000"';
-
-const child = spawn(command, [], {
+const concurrentlyCli = path.join(ROOT_DIR, 'node_modules', 'concurrently', 'dist', 'bin', 'index.js');
+const serveCli = path.join(ROOT_DIR, 'node_modules', 'serve', 'build', 'main.js');
+const child = spawn(process.execPath, [
+  concurrentlyCli,
+  '-n',
+  'BACKEND,FRONTEND',
+  '-c',
+  'cyan,magenta',
+  '--kill-others-on-fail',
+  'node ./backend/server.js',
+  `node "${serveCli}" frontend -l ${frontendPort}`
+], {
   stdio: 'inherit',
-  cwd: ROOT_DIR,
-  shell: true,
-  env: { ...process.env }
+  cwd: ROOT_DIR
 });
+
+let shuttingDown = false;
 
 child.on('error', (err) => {
   console.error('Failed to start production servers:', err);
-  process.exit(1);
+  process.exitCode = 1;
 });
 
 child.on('exit', (code) => {
-  process.exit(code);
+  process.exitCode = shuttingDown ? 0 : (code ?? 1);
 });
 
-// Graceful shutdown handling
-process.on('SIGINT', () => {
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   log('\n🛑 Shutting down production servers...', colors.yellow);
-  child.kill('SIGINT');
-  process.exit(0);
-});
 
-process.on('SIGTERM', () => {
-  log('\n🛑 Shutting down production servers...', colors.yellow);
-  child.kill('SIGTERM');
-  process.exit(0);
-});
+  if (process.platform === 'win32' && child.pid) {
+    const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    killer.on('error', (err) => {
+      console.error('Failed to stop production server processes:', err.message);
+      child.kill(signal);
+    });
+    killer.on('exit', (code) => {
+      if (code !== 0 && child.exitCode === null) {
+        console.error('Failed to stop production server process tree.');
+        child.kill(signal);
+      }
+    });
+    return;
+  }
+
+  child.kill(signal);
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

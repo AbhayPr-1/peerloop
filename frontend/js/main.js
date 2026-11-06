@@ -1,9 +1,7 @@
 // frontend/js/main.js
 
 document.addEventListener('DOMContentLoaded', async () => {
-  
-  // CRITICAL: Initialize the read-only provider first!
-  await initializeReadOnlyProvider(); // <— ADDED LINE
+  readOnlyProviderReady = initializeReadOnlyProvider();
     
   // Socket.IO Configuration (guarded if socket.io is unavailable)
   let socket = null;
@@ -18,45 +16,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // *** FINAL SOCKET CONNECTION HANDLERS ***
     socket.on('connect', () => {
+        console.info(`Socket.IO connected (${socket.id}) via ${socket.io.engine.transport.name}.`);
         if (document.getElementById('marketplace').classList.contains('hidden') === false) {
-            fetchProducts(false); 
+            fetchProducts(true);
         }
     });
 
+    socket.on('connect_error', (error) => {
+        console.error('Socket: Connection failed; automatic retries continue.', error);
+    });
 
     socket.on('disconnect', (reason) => {
         console.error('Socket: Disconnected. Reason:', reason);
-        showMessage("Real-time connection lost. Reconnecting...", 5000);
+        if (reason !== 'io client disconnect') {
+            showMessage("Real-time connection lost. Reconnecting...", 5000);
+        }
     });
     
-    socket.on('reconnect', () => {
+    socket.io.on('reconnect', () => {
         showMessage("Real-time connection restored. Refreshing...", 3000);
-        fetchProducts(true); 
+        if (!document.getElementById('marketplace').classList.contains('hidden')) {
+            fetchProducts(true);
+        }
     });
     
-    socket.on('reconnect_error', (error) => {
-        console.error('Socket: Reconnect error. Forcing fresh connection.', error);
-        socket.close();
-        setTimeout(() => socket.open(), 5000); 
+    socket.io.on('reconnect_error', (error) => {
+        console.error('Socket: Reconnect attempt failed; automatic retries continue.', error);
     });
     
-    socket.on('reconnect_failed', () => {
+    socket.io.on('reconnect_failed', () => {
         console.error('Socket: Reconnection failed permanently.');
         showMessage("Real-time connection failed permanently. Please refresh the page.", 6000);
     });
 
     socket.on('product_updated', (data) => {
-        if (socket.connected) {
-            showMessage(`Real-time update: A product was ${data.type}. Refreshing...`); 
-            try {
-                fetchProducts(true); 
-            } catch (e) {
-                console.error("Failed to execute fetchProducts during real-time update:", e);
+        if (!data || !['listed', 'sold', 'deleted'].includes(data.type)) return;
+        console.info(`Socket: Received ${data.type} update for product ${data.id ?? 'unknown'}.`);
+        if (data.type === 'sold' || data.type === 'deleted') {
+            if (data.id != null) {
+                const productId = String(data.id);
+                realtimeRemovedProductIds.add(productId);
+                allProducts = allProducts.filter(product => String(product._id) !== productId);
+                filterAndSortProducts();
             }
-            if (data.type === 'sold' || data.type === 'deleted') {
-              handleRealTimeCartRemoval(data.id, data.name);
-            }
+            handleRealTimeCartRemoval(data.id, data.name);
         }
+        if (socket.connected) fetchProducts(true);
     });
   } else {
     console.warn("Socket.IO client library not found. Real-time updates disabled.");
@@ -64,6 +69,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   checkAuthState();
   renderUI();
+
+  initializeModalListeners();
+  showSection('hero');
+  initializeCustomSelect('category-filter', filterAndSortProducts);
+  initializeCustomSelect('product-category');
+  initializeCustomSelect('sort-by', filterAndSortProducts);
+
+  await readOnlyProviderReady;
 
   if (currentUser) {
     try {
@@ -83,12 +96,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn("Could not auto-connect signer:", e);
     }
   }
-  // *** FIX APPLIED: Removed redundant fetchProducts(false) call here. ***
-  initializeModalListeners();
-  showSection('hero'); // This initiates the initial UI state
-  initializeCustomSelect('category-filter', filterAndSortProducts);
-  initializeCustomSelect('product-category');
-  initializeCustomSelect('sort-by', filterAndSortProducts);
 });
 
 function initializeModalListeners() {
@@ -149,32 +156,44 @@ uploader.addEventListener('drop', e => {
 fileInput.addEventListener('change', () => handleFileChange(fileInput.files[0]));
 document.getElementById("create-listing-form").addEventListener("submit", createListingFormHandler);
 
-async function renderProfileSection(type) {
+async function renderProfileSection(type, retryCount = 0) {
   document.getElementById('profile-dropdown-menu').classList.add('hidden');
-  if (!currentUser || !marketplaceContract) return;
+  if (!currentUser) return;
 
   const gridIds = { listings: 'my-listings-grid', sold: 'sold-history-grid', purchased: 'purchase-history-grid' };
   const sectionIds = { listings: 'my-listings-tab', sold: 'sold-history-tab', purchased: 'purchase-history-tab' };
   const grid = document.getElementById(gridIds[type]);
   showSection(sectionIds[type]);
 
-  let skeletonHTML = '';
-  for (let i = 0; i < 3; i++) skeletonHTML += `<div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>`;
-  grid.innerHTML = skeletonHTML;
+  const loadingMessage = document.createElement('p');
+  loadingMessage.className = 'text-center text-gray-500 col-span-full';
+  loadingMessage.textContent = type === 'listings' ? 'Loading listings...' : 'Loading transaction history...';
+  grid.replaceChildren(loadingMessage);
 
   try {
+    if (type === 'listings' && !readOnlyContract) {
+      throw new Error('The marketplace contract is not connected.');
+    }
     const myAddress = currentUser.walletAddress.toLowerCase();
 
-    // FIX: Only render Listings, other tabs remain placeholder.
     if (type !== 'listings') {
-        grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">Purchase and Sold History require a more complex smart contract to track past transactions.</p>`;
+      const history = await getWalletTransactionHistory(myAddress);
+      const records = type === 'sold' ? history.sold : history.purchased;
+      grid.innerHTML = '';
+      if (records.length === 0) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'text-center text-gray-500 col-span-full';
+        emptyState.textContent = 'No items.';
+        grid.appendChild(emptyState);
         return;
+      }
+      records.forEach((product) => grid.appendChild(createProfileProductCard(product, type)));
+      return;
     }
 
-    // CRITICAL FIX: Ensure ALL PRODUCTS is fresh before filtering for the profile view
-    await fetchProducts(false); 
-    
-    const myProducts = allProducts 
+    const activeProducts = await loadProductsFromChain();
+    allProducts = activeProducts;
+    const myProducts = activeProducts
       .filter(p => p.seller.toLowerCase() === myAddress)
       .map(p => ({
             _id: p._id, name: p.name, description: p.description,
@@ -184,18 +203,29 @@ async function renderProfileSection(type) {
 
     grid.innerHTML = '';
     if (myProducts.length === 0) {
-      grid.innerHTML = `<div class="text-center p-8 border-2 border-dashed rounded-md col-span-full">
-              <h3 class="text-2xl font-bold text-gray-400">You have no active listings.</h3>
-              <p class="text-gray-500 mt-2 mb-6">Ready to give your old gear a new life?</p>
-              <button id="listings-sell-btn" class="modern-button">Sell Your First Gear</button>
-          </div>`;
-      document.getElementById('listings-sell-btn').addEventListener('click', () => showSection('sell-tab'));
+      const emptyState = document.createElement('p');
+      emptyState.className = 'text-center text-gray-500 col-span-full';
+      emptyState.textContent = 'No items.';
+      grid.replaceChildren(emptyState);
       return;
     }
     myProducts.forEach(product => grid.appendChild(createProfileProductCard(product, type)));
   } catch (error) {
     console.error(error);
-    grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
+    if (retryCount < 2) {
+      loadingMessage.textContent = 'Connection is slow. Retrying...';
+      setTimeout(() => {
+        if (currentUser
+          && !document.getElementById(sectionIds[type]).classList.contains('hidden')) {
+          renderProfileSection(type, retryCount + 1);
+        }
+      }, 1000 * (retryCount + 1));
+      return;
+    }
+    const errorMessage = document.createElement('p');
+    errorMessage.className = 'text-center text-red-500 col-span-full';
+    errorMessage.textContent = `Could not load items after retrying: ${error.message}`;
+    grid.replaceChildren(errorMessage);
   }
 }
 
@@ -213,18 +243,47 @@ function handleFileChange(file) {
     reader.readAsDataURL(file);
 }
 
+function getListingErrorMessage(error) {
+  if (error.code === 'USER_REJECTED_TRANSACTION' || error.code === 4001) {
+    return "Transaction was cancelled in your wallet.";
+  }
+  if (error.code === 'INSUFFICIENT_FUNDS' || /insufficient funds/i.test(error.message || '')) {
+    return "Your wallet does not have enough Sepolia ETH to pay the transaction fee.";
+  }
+
+  const reason = [
+    error.reason,
+    error.error?.reason,
+    error.data?.message,
+    error.error?.data?.message,
+    error.error?.message,
+    error.message
+  ].find((candidate) => typeof candidate === 'string'
+    && candidate.trim()
+    && !/^transaction failed\.?$/i.test(candidate.trim()));
+  if (reason) {
+    return reason.trim().replace(/^execution reverted:\s*/i, '');
+  }
+
+  const transactionHash = error.transactionHash || error.receipt?.transactionHash;
+  if (transactionHash) {
+    return `Listing transaction failed. View the reverted transaction on Sepolia Etherscan: https://sepolia.etherscan.io/tx/${transactionHash}`;
+  }
+  return "Listing transaction failed. Confirm your wallet is on Sepolia and has enough Sepolia ETH for gas, then check the browser console for details.";
+}
+
 async function createListingFormHandler(e) {
   e.preventDefault();
   if (!currentUser) return showMessage("You must be logged in.");
   if (!marketplaceContract || !signer) return showMessage("Connecting to contract... Please wait and try again."); 
 
-  await ensureSepoliaNetwork();
   const buttonElement = e.submitter;
   setButtonLoading(buttonElement, true, 'Checking...');
   
   const name = document.getElementById("product-name").value.trim();
   const description = document.getElementById("product-desc").value.trim();
   const priceString = document.getElementById("product-price").value;
+  const category = document.querySelector("#product-category input[type='hidden']").value;
   const file = document.getElementById("product-photo").files[0];
 
   if (!name || !description || !priceString || !file) {
@@ -237,7 +296,9 @@ async function createListingFormHandler(e) {
       return showMessage("Price must be a number greater than 0.");
   }
 
+  let listingConfirmed = false;
   try {
+    await ensureSepoliaNetwork(walletProvider);
     setButtonLoading(buttonElement, true, 'Uploading Image...');
     const formData = new FormData();
     formData.append('productImage', file);
@@ -264,13 +325,39 @@ async function createListingFormHandler(e) {
     const priceInWei = ethers.utils.parseEther(priceString);
     showMessage("Sending transaction... Please check your wallet.");
     const tx = await marketplaceContract.listProduct(name, description, priceInWei, imageUrl);
-    await tx.wait(); 
+    const receipt = await tx.wait();
+    listingConfirmed = true;
+    const listingEvent = receipt.logs
+      .map((log) => {
+        try {
+          return marketplaceContract.interface.parseLog(log);
+        } catch (_) {
+          return null;
+        }
+      })
+      .find((event) => event && event.name === 'ProductListed');
+    if (!listingEvent) {
+      throw new Error('The listing was confirmed, but its product ID could not be read from the transaction.');
+    }
+
+    const categoryResponse = await fetch(`${API_URL}/api/listing-metadata`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': localStorage.getItem('token')
+      },
+      body: JSON.stringify({ productId: listingEvent.args.id.toString(), category })
+    });
+    if (!categoryResponse.ok) {
+      let errorMessage = 'Could not save the selected category.';
+      try {
+        const errorData = await categoryResponse.json();
+        errorMessage = errorData.msg || errorMessage;
+      } catch (_) {}
+      throw new Error(errorMessage);
+    }
 
     showMessage("Product listed successfully!");
-    
-    // *** FIX: GUARANTEED LOCAL REFRESH ***
-    fetchProducts(true); // Pass true to wait for RPC sync
-    // *** END FIX ***
     
     document.getElementById("create-listing-form").reset();
     document.getElementById("image-preview").classList.add("hidden");
@@ -279,15 +366,15 @@ async function createListingFormHandler(e) {
     categoryContainer.querySelector('span').textContent = 'Electronics';
     categoryContainer.querySelector('input[type="hidden"]').value = 'electronics';
 
-    setButtonLoading(buttonElement, false); 
-    showSection('marketplace');
+    await renderProfileSection('listings');
+    setButtonLoading(buttonElement, false);
     
   } catch(error) { 
     console.error(error);
-    if (error.code === 'USER_REJECTED_TRANSACTION') {
-      showMessage("Transaction was cancelled.");
+    if (listingConfirmed) {
+      showMessage(`Listing confirmed, but its category could not be saved: ${error.message}`);
     } else {
-      showMessage(error.message || "Transaction failed.");
+      showMessage(getListingErrorMessage(error));
     }
   } finally {
     setButtonLoading(buttonElement, false);
@@ -300,9 +387,10 @@ async function renderSellerProfile(sellerId, sellerName) {
   heading.textContent = `Gears from ${sellerName}`;
   showSection('seller-profile-tab');
   
-  let skeletonHTML = '';
-  for (let i = 0; i < 3; i++) skeletonHTML += `<div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>`;
-  grid.innerHTML = skeletonHTML;
+  const loadingMessage = document.createElement('p');
+  loadingMessage.className = 'text-center text-gray-500 col-span-full';
+  loadingMessage.textContent = 'No items.';
+  grid.replaceChildren(loadingMessage);
   
   try {
     // FIX: Use up-to-date products fetched from the blockchain
@@ -311,11 +399,14 @@ async function renderSellerProfile(sellerId, sellerName) {
     const sellerProducts = allProducts.filter(p => p.seller.toLowerCase() === sellerId.toLowerCase());
     grid.innerHTML = '';
     if (sellerProducts.length === 0) {
-      grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">This seller has no active listings.</p>`;
+      grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No items.</p>`;
       return;
     }
     sellerProducts.forEach(product => grid.appendChild(createProductCard(product)));
   } catch (error) {
-    grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: ${error.message}</p>`;
+    const errorMessage = document.createElement('p');
+    errorMessage.className = 'text-center text-red-500 col-span-full';
+    errorMessage.textContent = `Could not load items: ${error.message}`;
+    grid.replaceChildren(errorMessage);
   }
 }

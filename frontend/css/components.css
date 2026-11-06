@@ -15,9 +15,9 @@
   border-radius: 9999px;
   font-weight: 600;
   transition: all 0.3s ease;
-  background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
+  background: linear-gradient(45deg, var(--button-start), var(--button-end));
   box-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-pink);
-  color: white;
+  color: var(--button-text);
   border: none;
   display: flex;
   align-items: center;
@@ -45,6 +45,49 @@
     color: var(--dark-bg);
     border-color: var(--neon-blue);
     cursor: default;
+}
+html[data-theme='dark'] .text-neon-blue { color: var(--neon-blue); }
+html[data-theme='dark'] .text-neon-pink { color: var(--neon-pink); }
+html[data-theme='dark'] .text-gray-300 { color: #d1d5db; }
+html[data-theme='dark'] .text-gray-400 { color: var(--text-muted); }
+html[data-theme='dark'] .text-gray-500,
+html[data-theme='dark'] .text-gray-600 { color: var(--text-subtle); }
+html[data-theme='dark'] .text-green-400 { color: #6ee7a0; }
+html[data-theme='dark'] .text-yellow-400 { color: #facc65; }
+html[data-theme='dark'] .text-blue-400 { color: #7dd3fc; }
+html[data-theme='dark'] .text-red-500 { color: #ff8585; }
+html[data-theme='dark'] .bg-gray-700 { background-color: #34384a; color: #f0f0f0; }
+html[data-theme='dark'] .bg-gray-800 { background-color: var(--surface-muted); color: #f0f0f0; }
+html[data-theme='dark'] .bg-gray-900:not(.bg-opacity-75) { background-color: var(--surface-deep); color: #f0f0f0; }
+html[data-theme='dark'] .bg-gray-900.bg-opacity-75 { background-color: rgba(3, 5, 14, 0.82); }
+html[data-theme='dark'] .border-gray-700 { border-color: #4b5563; }
+html[data-theme='light'] .text-neon-blue { color: var(--neon-blue); }
+html[data-theme='light'] .text-neon-pink { color: var(--neon-pink); }
+html[data-theme='light'] .text-gray-300,
+html[data-theme='light'] .text-gray-400,
+html[data-theme='light'] .text-gray-500,
+html[data-theme='light'] .text-gray-600 { color: var(--text-muted); }
+html[data-theme='light'] .text-green-400 { color: #146c43; }
+html[data-theme='light'] .text-yellow-400 { color: #805b00; }
+html[data-theme='light'] .text-blue-400 { color: #084298; }
+html[data-theme='light'] .text-red-500 { color: #b02a37; }
+html[data-theme='light'] .bg-gray-700 { background-color: var(--surface-muted); color: #212529; }
+html[data-theme='light'] .bg-gray-800 { background-color: var(--surface-muted); color: #212529; }
+html[data-theme='light'] .bg-gray-900:not(.bg-opacity-75) { background-color: var(--surface-deep); color: #212529; }
+html[data-theme='light'] .bg-gray-900.bg-opacity-75 { background-color: rgba(33, 37, 41, 0.52); }
+html[data-theme='light'] .border-gray-700 { border-color: #adb5bd; }
+html[data-theme='light'] #message-box { background-color: #212529; color: #ffffff; }
+html[data-theme='light'] .delete-listing-btn {
+  color: #b02a37 !important;
+  border-color: #b02a37 !important;
+}
+html[data-theme='light'] .delete-listing-btn:hover {
+  background-color: #b02a37 !important;
+  color: #ffffff !important;
+}
+html[data-theme='dark'] .delete-listing-btn:hover {
+  background-color: #b02a37 !important;
+  color: #ffffff !important;
 }
 hr.neon-hr {
   border: none;
@@ -84,6 +127,8 @@ hr.neon-hr {
   color: var(--text-color);
   transition: background-color 0.3s ease;
 }
+html[data-theme='dark'] .auth-input option { background-color: var(--dark-card); color: var(--text-color); }
+html[data-theme='light'] .auth-input option { background-color: #ffffff; color: #212529; }
 html[data-theme='dark'] .dropdown-menu a:hover { background-color: #374151; }
 html[data-theme='light'] .dropdown-menu a:hover { background-color: #e9ecef; }
 .loader {
@@ -109,9 +154,5 @@ input:checked + .slider { background-color: var(--neon-blue); }
 input:checked + .slider:before { transform: translateX(26px); }
 .slider.round { border-radius: 34px; }
 .slider.round:before { border-radius: 50%; }
-html[data-theme='light'] .text-neon-blue { color: var(--neon-blue); }
-html[data-theme='light'] .text-gray-400 { color: #6c757d; }
-html[data-theme='light'] .text-neon-pink { color: var(--neon-pink); }
-html[data-theme='light'] .bg-gray-700 { background-color: #e9ecef; color: #495057; }
-html[data-theme='light'] .modern-button { color: white; }
+html[data-theme='light'] .modern-button { color: var(--button-text); }
 html[data-theme='light'] #hero .text-gray-300 { color: var(--text-color); }

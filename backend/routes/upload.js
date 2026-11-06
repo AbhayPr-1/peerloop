@@ -66,7 +66,7 @@ router.post('/', auth, receiveImage, async (req, res) => {
 
   try {
     const result = await pinata.pinFileToIPFS(stream, options);
-    const imageUrl = `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`;
+    const imageUrl = `ipfs://${result.IpfsHash}`;
     return res.json({ imageUrl, ipfsHash: result.IpfsHash });
   } catch (err) {
     console.error('Pinata upload error:', err.message);

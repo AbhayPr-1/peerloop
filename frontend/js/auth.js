@@ -32,9 +32,9 @@ async function handleMetaMaskLogin(buttonElement) {
     }
 
     try {
-        await ensureSepoliaNetwork();
         const provider = new ethers.providers.Web3Provider(walletProvider, "any");
         await provider.send("eth_requestAccounts", []);
+        await ensureSepoliaNetwork(walletProvider);
         const signer = provider.getSigner();
         const walletAddress = await signer.getAddress();
 
@@ -70,7 +70,6 @@ async function handleMetaMaskLogin(buttonElement) {
         showMessage('Wallet connected successfully!');
         closeAuthModal();
         
-        // *** UPDATED: Connect the contract to the signer ***
         await connectContractToSigner(signer); 
         
         renderUI(); // Render UI after contract is connected

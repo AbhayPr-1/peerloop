@@ -1,7 +1,7 @@
 const express = require('express');
 
 const router = express.Router();
-const PUBLIC_SEPOLIA_RPC_URL = 'https://rpc.sepolia.org';
+const PUBLIC_SEPOLIA_RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com';
 
 router.get('/rpc-url', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');

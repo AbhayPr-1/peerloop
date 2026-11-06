@@ -8,7 +8,7 @@
     "dev": "node scripts/dev.js",
     "prod": "node scripts/prod.js",
     "dev:backend": "nodemon ./backend/server.js",
-    "dev:frontend": "serve frontend -l 3000",
+    "dev:frontend": "node scripts/frontend-dev.js",
     "start": "node ./backend/server.js",
     "contracts:compile": "npm run --prefix smart-contract compile",
     "contracts:deploy": "npm run --prefix smart-contract deploy",

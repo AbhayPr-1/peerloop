@@ -47,21 +47,11 @@ function renderCart() {
   cont.innerHTML = '';
 
   if (userCart.length === 0) {
-    // FIX: Provide the full HTML content for the empty cart state, 
-    // including the necessary button with an ID to attach an event listener.
-    cont.innerHTML = `<div class="text-center p-8 border-2 border-dashed rounded-md col-span-full">
-            <h3 class="text-2xl font-bold text-gray-400">Your cart is empty.</h3>
-            <p class="text-gray-500 mt-2 mb-6">Explore the marketplace to find your next gear.</p>
-            <button id="cart-explore-btn" class="modern-button">Explore Gears</button>
-        </div>`;
-    
+    const emptyState = document.createElement('p');
+    emptyState.className = 'text-center text-gray-500';
+    emptyState.textContent = 'No items.';
+    cont.replaceChildren(emptyState);
     summaryEl.classList.add('hidden');
-    
-    // FIX: The error occurs here because the button was missing/misnamed in the original placeholder.
-    const exploreBtn = document.getElementById('cart-explore-btn');
-    if (exploreBtn) {
-        exploreBtn.addEventListener('click', () => showSection('marketplace'));
-    }
     return;
   }
 
@@ -72,13 +62,13 @@ function renderCart() {
     if (Number.isFinite(itemPrice)) total += itemPrice;
     const el = document.createElement('div');
     el.className = 'flex items-center space-x-4 bg-gray-800 p-4 rounded-xl card-neon-border';
-    const imageUrl = safeImageUrl(item.imageUrl);
     el.innerHTML = `
-      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name)}" class="w-16 h-16 object-cover rounded-md">
+      <img alt="${escapeHtml(item.name)}" class="w-16 h-16 object-cover rounded-md">
       <div class="flex-grow">
         <h4 class="text-lg font-bold text-neon-blue">${escapeHtml(item.name)}</h4><p>${(Number.isFinite(itemPrice) ? itemPrice : 0).toFixed(4)} ETH</p>
       </div>
       <button class="remove-from-cart-btn text-red-500 hover:text-red-400 transition-colors" data-product-id="${escapeHtml(item._id)}">✖</button>`;
+    setResilientImage(el.querySelector('img'), item.imageUrl);
     cont.appendChild(el);
   });
   totalEl.textContent = `${total.toFixed(4)} ETH`;

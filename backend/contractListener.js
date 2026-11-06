@@ -72,6 +72,9 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function startContractListener(io, opts = {}) {
   const pollIntervalMs = opts.pollIntervalMs || 3000;
   const lookbackBlocks = typeof opts.lookbackBlocks === 'number' ? opts.lookbackBlocks : 2;
+  const maxBlockRange = Number.isInteger(opts.maxBlockRange) && opts.maxBlockRange > 0
+    ? opts.maxBlockRange
+    : 10;
   const dedupeCacheSize = opts.dedupeCacheSize || 1000;
 
   if (!RPC_URL || !CONTRACT_ADDRESS || hasPlaceholderRpcUrl(RPC_URL)) {
@@ -84,6 +87,7 @@ function startContractListener(io, opts = {}) {
 
   let stopped = false;
   let pollHandle = null;
+  let pollInProgress = false;
   let lastChecked = null; // last fully-processed block number
 
   // dedupeSet stores keys "txHash:logIndex". Keep insertion order to prune oldest when size > dedupeCacheSize.
@@ -110,7 +114,7 @@ function startContractListener(io, opts = {}) {
       console.log(`Contract polling initialized. Starting from block ${lastChecked + 1}`);
     } catch (err) {
       console.error('Failed to initialize block number:', err);
-      lastChecked = 0;
+      lastChecked = null;
     }
 
     pollHandle = setInterval(pollOnce, pollIntervalMs);
@@ -119,30 +123,22 @@ function startContractListener(io, opts = {}) {
   }
 
   async function pollOnce() {
-    if (stopped) return;
+    if (stopped || pollInProgress) return;
+    pollInProgress = true;
     try {
       const latest = await provider.getBlockNumber();
+      if (lastChecked === null) {
+        lastChecked = Math.max(0, latest - 1);
+      }
       if (latest <= lastChecked) {
         return; // nothing new
       }
-
-      // Compute non-overlapping window: from = lastChecked + 1, to = latest
-      // We'll also query a small lookback inside that window for safety on reorgs:
-      const from = Math.max(0, lastChecked + 1 - lookbackBlocks);
-      const to = latest;
-
-      console.log(`Polling blocks ${from} → ${to} (lastChecked=${lastChecked})`);
-
-      // Query events in this block range
-      const listed = await contract.queryFilter('ProductListed', from, to);
-      const sold = await contract.queryFilter('ProductSold', from, to);
-      const deleted = await contract.queryFilter('ProductDeleted', from, to);
 
       // Helper to process an event array
       const processEvents = (events, type) => {
         for (const ev of events) {
           const tx = ev.transactionHash || (ev.transaction && ev.transaction.hash) || '';
-          const logIndex = (typeof ev.logIndex !== 'undefined') ? ev.logIndex : (ev.transactionIndex || 0);
+          const logIndex = ev.index ?? ev.logIndex ?? ev.transactionIndex ?? 0;
           const dedupeKey = `${tx}:${logIndex}`;
 
           // If already processed, skip
@@ -155,36 +151,43 @@ function startContractListener(io, opts = {}) {
           let id = null, name = null;
           try {
             if (ev.args) {
-              // prefer named fields
-              id = ev.args.id ? ev.args.id.toString() : (ev.args.productId ? ev.args.productId.toString() : null);
-              name = ev.args.name ? ev.args.name : null;
+              const eventId = ev.args.id ?? ev.args.productId;
+              id = eventId == null ? null : eventId.toString();
+              name = ev.args.name ?? null;
             }
           } catch (e) {
-            // fallback
             console.warn('Error reading ev.args', e);
           }
 
           console.log(`[POLL EVENT] ${type} tx=${tx} logIndex=${logIndex} id=${id} name=${name}`);
-          // Emit a single 'product_updated' for this log
-          // Frontend fetchProducts() should re-read state. You can attach payload if desired.
           io.emit('product_updated', { type, id, name, tx, logIndex });
         }
       };
 
-      // Process events
-      if (listed.length || sold.length || deleted.length) {
-        console.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length}`);
+      const from = Math.max(0, lastChecked + 1 - lookbackBlocks);
+      for (let chunkStart = from; chunkStart <= latest; chunkStart += maxBlockRange) {
+        const chunkEnd = Math.min(latest, chunkStart + maxBlockRange - 1);
+        console.log(`Polling blocks ${chunkStart} → ${chunkEnd} (lastChecked=${lastChecked})`);
+
+        const listed = await contract.queryFilter('ProductListed', chunkStart, chunkEnd);
+        const sold = await contract.queryFilter('ProductSold', chunkStart, chunkEnd);
+        const deleted = await contract.queryFilter('ProductDeleted', chunkStart, chunkEnd);
+
+        if (listed.length || sold.length || deleted.length) {
+          console.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length}`);
+        }
+
+        processEvents(listed, 'listed');
+        processEvents(sold, 'sold');
+        processEvents(deleted, 'deleted');
       }
 
-      processEvents(listed, 'listed');
-      processEvents(sold, 'sold');
-      processEvents(deleted, 'deleted');
-
-      // Update lastChecked to the latest block we processed (non-overlapping)
       lastChecked = latest;
     } catch (err) {
       console.error('Polling error:', err && err.message ? err.message : err);
       await sleep(2000);
+    } finally {
+      pollInProgress = false;
     }
   }
 

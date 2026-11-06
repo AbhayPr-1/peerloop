@@ -1,6 +1,5 @@
 // frontend/js/contract.js
 
-// This address will be AUTO-UPDATED by your deploy script.
 const marketplaceAddress = "0x8693297bD80A12b91d7d890A7d469FCb02E2574D";
 
 // *** PASTE YOUR NEW ABI (from Marketplace.json) HERE ***
@@ -298,33 +297,123 @@ let readOnlyContract = null;
 let marketplaceContract = null;
 
 let signer = null;
+let walletProvider = null;
+let readOnlyProviderReady = Promise.resolve();
+let readOnlyRpcUrls = [];
+const readOnlyContractsByUrl = new Map();
 
-// Fallback RPC URL used if the backend is unreachable
-const FALLBACK_RPC_URL = "https://rpc.sepolia.org";
+// Public RPCs keep marketplace reads available if a configured endpoint fails.
+const FALLBACK_RPC_URLS = [
+    "https://ethereum-sepolia-rpc.publicnode.com",
+    "https://sepolia.gateway.tenderly.co"
+];
 
-// Fetches the RPC URL from the backend and initializes the read-only contract.
-// Falls back to the public Sepolia RPC URL if the backend is unavailable.
+function withTimeout(promise, timeoutMs, message) {
+    let timeout;
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+        })
+    ]).finally(() => clearTimeout(timeout));
+}
+
+// Validate the chain and marketplace deployment before selecting a read-only RPC.
 async function initializeReadOnlyProvider() {
-    let rpcUrl = FALLBACK_RPC_URL;
+    const rpcUrls = [];
+    const configAbortController = new AbortController();
+    const configTimeout = setTimeout(() => configAbortController.abort(), 3000);
     try {
-        const response = await fetch(`${API_URL}/api/config/rpc-url`);
+        const response = await fetch(`${API_URL}/api/config/rpc-url`, { signal: configAbortController.signal });
         if (!response.ok) {
             throw new Error(`Backend returned ${response.status}`);
         }
         const data = await response.json();
-        if (data.rpcUrl) rpcUrl = data.rpcUrl;
+        if (data.rpcUrl) rpcUrls.push(data.rpcUrl);
     } catch (e) {
-        console.warn("Could not fetch RPC URL from backend, using fallback:", e.message);
+        console.warn("Could not fetch RPC URL from backend; trying public Sepolia RPCs:", e.message);
+    } finally {
+        clearTimeout(configTimeout);
     }
 
-    try {
-        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    readOnlyRpcUrls = [...new Set([...FALLBACK_RPC_URLS, ...rpcUrls])];
+    for (const rpcUrl of readOnlyRpcUrls) {
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      try {
+        const network = await withTimeout(
+            provider.getNetwork(),
+            5000,
+            `${new URL(rpcUrl).hostname} did not respond during network detection.`
+        );
+        if (Number(network.chainId) !== 11155111) {
+            throw new Error(`RPC endpoint returned unexpected chain ID ${network.chainId}.`);
+        }
+        const code = await withTimeout(
+            provider.getCode(marketplaceAddress),
+            5000,
+            `${new URL(rpcUrl).hostname} did not respond during contract verification.`
+        );
+        if (!code || code === '0x') {
+            throw new Error('Marketplace contract is not deployed on this RPC endpoint.');
+        }
+
         readOnlyContract = new ethers.Contract(marketplaceAddress, marketplaceABI, provider);
+        readOnlyContractsByUrl.set(rpcUrl, readOnlyContract);
         // Also initialise marketplaceContract so reads work before the user logs in
         marketplaceContract = readOnlyContract;
-        console.log("Contract read-only instance created successfully.");
-    } catch (e) {
-        console.error("Fatal: Could not initialize contract instance:", e);
+        console.log(`Contract read-only instance created using ${new URL(rpcUrl).hostname}.`);
+        return;
+      } catch (error) {
+        console.warn(`Could not initialize contract RPC ${new URL(rpcUrl).hostname}:`, error.message);
+      }
+    }
+
+    readOnlyContract = null;
+    marketplaceContract = null;
+    console.error("Fatal: No available Sepolia RPC could connect to the marketplace contract.");
+}
+
+function getReadOnlyContract(rpcUrl) {
+    if (!readOnlyContractsByUrl.has(rpcUrl)) {
+        const provider = new ethers.providers.JsonRpcProvider(rpcUrl, { chainId: 11155111, name: 'sepolia' });
+        readOnlyContractsByUrl.set(rpcUrl, new ethers.Contract(marketplaceAddress, marketplaceABI, provider));
+    }
+    return readOnlyContractsByUrl.get(rpcUrl);
+}
+
+function withReadTimeout(promise, rpcUrl) {
+    return withTimeout(
+        promise,
+        7000,
+        `${new URL(rpcUrl).hostname} did not respond in time.`
+    );
+}
+
+async function readMarketplaceProducts() {
+    await readOnlyProviderReady;
+    if (!readOnlyContract) throw new Error('The marketplace contract is not connected.');
+
+    const rpcUrls = readOnlyRpcUrls.length ? readOnlyRpcUrls : [FALLBACK_RPC_URLS[0]];
+    try {
+        const result = await Promise.any(rpcUrls.map(async (rpcUrl) => {
+            const contract = getReadOnlyContract(rpcUrl);
+            const products = await withReadTimeout(contract.getAllForSaleProducts(), rpcUrl);
+            return { contract, products };
+        }));
+        readOnlyContract = result.contract;
+        if (!signer) marketplaceContract = result.contract;
+        return result.products;
+    } catch (error) {
+        const failures = error.errors || [];
+        const details = failures
+            .map((failure) => failure.message)
+            .filter(Boolean)
+            .join('; ');
+        throw new Error(
+            details
+                ? `Marketplace RPCs are temporarily unavailable. ${details}`
+                : 'Marketplace RPCs are temporarily unavailable. Please try again.'
+        );
     }
 }
 
@@ -336,6 +425,7 @@ async function connectContractToSigner(loggedInSigner) {
         console.error("Signer is missing, contract cannot be connected.");
         return;
     }
+    walletProvider = loggedInSigner.provider && loggedInSigner.provider.provider;
     signer = loggedInSigner;
 
     if (readOnlyContract) {
@@ -353,41 +443,48 @@ async function connectContractToSigner(loggedInSigner) {
 const SEPOLIA_HEX_CHAIN_ID = "0xaa36a7"; // 11155111 in hex
 
 async function refreshSigner() {
-    if (typeof window.ethereum === "undefined") return;
-    const web3Provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+    const injectedProvider = walletProvider || window.ethereum;
+    if (!injectedProvider) return;
+    walletProvider = injectedProvider;
+    const web3Provider = new ethers.providers.Web3Provider(injectedProvider, "any");
     signer = web3Provider.getSigner();
     if (readOnlyContract) {
         marketplaceContract = readOnlyContract.connect(signer);
     }
 }
 
-async function ensureSepoliaNetwork() {
-    if (typeof window.ethereum === "undefined") return;
-    const currentChainId = await window.ethereum.request({ method: "eth_chainId" });
+async function ensureSepoliaNetwork(injectedProvider = walletProvider || window.ethereum) {
+    if (!injectedProvider) throw new Error("Connect your wallet before listing an item.");
+    walletProvider = injectedProvider;
+    const currentChainId = await injectedProvider.request({ method: "eth_chainId" });
     if (parseInt(currentChainId, 16) !== 11155111) {
         try {
-            await window.ethereum.request({
+            await injectedProvider.request({
                 method: "wallet_switchEthereumChain",
                 params: [{ chainId: SEPOLIA_HEX_CHAIN_ID }],
             });
         } catch (switchError) {
             if (switchError.code === 4902) {
-                await window.ethereum.request({
+                await injectedProvider.request({
                     method: "wallet_addEthereumChain",
                     params: [
                         {
                             chainId: SEPOLIA_HEX_CHAIN_ID,
                             chainName: "Sepolia Testnet",
                             nativeCurrency: { name: "Sepolia ETH", symbol: "SEP", decimals: 18 },
-                            rpcUrls: ["https://rpc.sepolia.org"],
+                            rpcUrls: [FALLBACK_RPC_URLS[0]],
                             blockExplorerUrls: ["https://sepolia.etherscan.io"],
                         },
                     ],
                 });
             } else {
-                throw new Error("Please switch your MetaMask network to Sepolia Testnet.");
+                throw new Error("Please switch your wallet network to Sepolia Testnet.");
             }
         }
+    }
+    const activeChainId = await injectedProvider.request({ method: "eth_chainId" });
+    if (parseInt(activeChainId, 16) !== 11155111) {
+        throw new Error("Please switch your wallet to the Sepolia Testnet to list an item.");
     }
     await refreshSigner();
 }

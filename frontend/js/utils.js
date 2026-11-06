@@ -1,17 +1,109 @@
 // frontend/js/utils.js
-const API_URL = `http://${window.location.hostname}:5001`;
+const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const API_URL = window.PEERLOOP_API_URL
+  || (isLocalHost ? `http://${window.location.hostname}:5001` : window.location.origin);
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[char]);
 }
 
-function safeImageUrl(value) {
+const IPFS_GATEWAYS = [
+  'https://ipfs.filebase.io/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/',
+  'https://dweb.link/ipfs/'
+];
+const IMAGE_LOAD_TIMEOUT_MS = 2500;
+const IMAGE_PLACEHOLDER = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#17212b"/><text x="50%" y="50%" fill="#94a3b8" font-family="sans-serif" font-size="24" text-anchor="middle" dominant-baseline="middle">Image unavailable</text></svg>'
+)}`;
+
+function getImageSources(value) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return [IMAGE_PLACEHOLDER];
+
   try {
-    const url = new URL(String(value || ''), window.location.href);
-    if (url.protocol === 'https:' || url.protocol === 'http:') return url.href;
-  } catch (_) {}
-  return 'https://via.placeholder.com/300x200.png?text=No+Image';
+    const url = new URL(rawValue, window.location.href);
+    let ipfsPath = '';
+    if (url.protocol === 'ipfs:') {
+      ipfsPath = `${url.hostname}${url.pathname}${url.search}${url.hash}`.replace(/^ipfs\//, '');
+    } else {
+      const markerIndex = url.pathname.indexOf('/ipfs/');
+      if (markerIndex !== -1) {
+        ipfsPath = `${url.pathname.slice(markerIndex + 6)}${url.search}${url.hash}`;
+      }
+    }
+
+    if (ipfsPath && !ipfsPath.split('/').includes('..')) {
+      return IPFS_GATEWAYS.map(gateway => `${gateway}${ipfsPath}`);
+    }
+    if (url.protocol === 'https:' || url.protocol === 'http:') return [url.href];
+  } catch (_) {
+    return [IMAGE_PLACEHOLDER];
+  }
+  return [IMAGE_PLACEHOLDER];
+}
+
+function setResilientImage(image, value) {
+  const sources = getImageSources(value);
+  let sourceIndex = 0;
+  let loadTimer = null;
+  let activeSource = '';
+  let started = false;
+  let observer = null;
+
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  image.style.backgroundColor = '#17212b';
+
+  const showNextSource = () => {
+    clearTimeout(loadTimer);
+    if (sourceIndex >= sources.length) {
+      image.src = IMAGE_PLACEHOLDER;
+      return;
+    }
+    activeSource = sources[sourceIndex++];
+    image.src = activeSource;
+    if (activeSource !== IMAGE_PLACEHOLDER && sources.length > 1) {
+      loadTimer = setTimeout(() => {
+        if (!image.complete || image.naturalWidth === 0) showNextSource();
+      }, IMAGE_LOAD_TIMEOUT_MS);
+    }
+  };
+
+  const startLoading = () => {
+    if (started) return;
+    started = true;
+    if (observer) observer.disconnect();
+    showNextSource();
+  };
+
+  image.addEventListener('load', () => {
+    if (image.currentSrc === activeSource || image.src === activeSource) {
+      clearTimeout(loadTimer);
+    }
+  });
+  image.addEventListener('error', () => {
+    if (image.currentSrc === activeSource || image.src === activeSource) showNextSource();
+  });
+  if ('IntersectionObserver' in window) {
+    observer = new IntersectionObserver((entries) => {
+      if (entries.some(entry => entry.isIntersecting)) startLoading();
+    });
+    observer.observe(image);
+  } else {
+    startLoading();
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 let currentUser = null;
@@ -100,9 +192,17 @@ function createProfileProductCard(product, context) {
     let actionButtons = '';
     
     const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
-    const imageUrl = safeImageUrl(product.imageUrl);
+    let historyInfo = '';
+    if (context === 'sold' || context === 'purchased') {
+        const completedAt = product.soldAt
+            ? new Date(product.soldAt).toLocaleString()
+            : `Block ${Number(product.blockNumber) || 'unknown'}`;
+        const transactionLink = /^0x[a-f0-9]{64}$/i.test(product.transactionHash || '')
+            ? `<a class="text-neon-blue underline text-sm" href="https://sepolia.etherscan.io/tx/${product.transactionHash}" target="_blank" rel="noopener noreferrer">View transaction</a>`
+            : '';
+        historyInfo = `<p class="text-xs text-gray-500 mb-2">Completed ${escapeHtml(completedAt)}</p>${transactionLink}`;
+    }
 
-    // *** UPDATED: Use formatAddress for display ***
     const sellerAddressDisplay = formatAddress(product.seller);
     const buyerAddressDisplay = formatAddress(product.buyer);
 
@@ -115,24 +215,66 @@ function createProfileProductCard(product, context) {
          contextInfo = `<p class="text-sm text-blue-400 mb-2">Status: Listed for sale</p>`;
          actionButtons = `
             <div class="grid grid-cols-1 gap-3 mt-4">
+                <label class="text-sm text-gray-400">
+                    Category
+                    <select class="listing-category-select w-full mt-1 p-2 rounded-xl auth-input">
+                        ${Object.entries(categoryDisplayMap).map(([value, label]) => `<option value="${value}"${product.category === value ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}
+                    </select>
+                </label>
+                <button class="modern-button-secondary save-listing-category-btn">Save Category</button>
                 <button class="modern-button-secondary delete-listing-btn !border-red-500 !text-red-500 hover:!bg-red-500 hover:!text-white">Delete</button>
             </div>
          `;
     }
 
     card.innerHTML = `
-        <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4">
+        <img alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4">
         <h3 class="text-2xl font-bold text-neon-blue mb-2">${escapeHtml(product.name)}</h3>
         ${contextInfo}
+        ${historyInfo}
         <p class="text-gray-400 flex-1 mb-4">${escapeHtml(product.description)}</p>
         <div class="flex items-center justify-between">
             <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-            <span class="text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
+            <span class="category-label text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
         </div>
         ${actionButtons}
     `;
+    setResilientImage(card.querySelector('img'), product.imageUrl);
 
     if (context === 'listings') {
+        const saveCategoryBtn = card.querySelector('.save-listing-category-btn');
+        if (saveCategoryBtn) {
+            saveCategoryBtn.addEventListener('click', async () => {
+                const category = card.querySelector('.listing-category-select').value;
+                setButtonLoading(saveCategoryBtn, true, 'Saving...');
+                try {
+                    const response = await fetch(`${API_URL}/api/listing-metadata`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-auth-token': localStorage.getItem('token')
+                        },
+                        body: JSON.stringify({ productId: product._id, category })
+                    });
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.msg || 'Could not save the category.');
+                    }
+                    product.category = category;
+                    const currentProduct = allProducts.find((item) => item._id === product._id);
+                    if (currentProduct) currentProduct.category = category;
+                    card.querySelector('.listing-category-select').value = category;
+                    card.querySelector('.category-label').textContent = categoryDisplayMap[category];
+                    showMessage('Listing category updated.');
+                } catch (error) {
+                    console.error('Could not update listing category:', error);
+                    showMessage(error.message || 'Could not save the category.');
+                } finally {
+                    setButtonLoading(saveCategoryBtn, false);
+                }
+            });
+        }
+
         const deleteBtn = card.querySelector('.delete-listing-btn');
         if (deleteBtn) {
             deleteBtn.addEventListener('click', (e) => {

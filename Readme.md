@@ -6,7 +6,8 @@ PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. 
 
 - The Solidity contract handles product listings, purchases, and deletions.
 - The Express backend manages wallet-based login, user data, and image uploads.
-- Product images are uploaded to Pinata and stored on IPFS.
+- Product images are uploaded to Pinata and stored as canonical IPFS URIs; the frontend uses a fast gateway first and falls back to alternate gateways if needed.
+- Marketplace reads race validated Sepolia RPC endpoints so a slow or unavailable endpoint does not block Explore.
 - An Ethers.js listener watches contract events and sends updates to the frontend through Socket.IO.
 - The frontend is a client-side JavaScript application. Cart data is stored in the browser.
 
@@ -37,6 +38,7 @@ npm run dev
 ```
 
 The frontend is served at [http://localhost:3000](http://localhost:3000). The backend runs on port 5001.
+If either default port is busy, `npm run dev` selects the next available port and prints the actual frontend and backend URLs; use the printed frontend URL.
 
 ## Configuration
 
@@ -54,6 +56,7 @@ Set the following values in the root `.env` file:
 | `PINATA_JWT` | Optional Pinata credential for IPFS uploads. |
 
 Never commit `.env` files or share private keys. They are excluded by `.gitignore`.
+For production, serve the frontend over HTTPS. By default, the frontend uses its own origin for API and Socket.IO requests, so configure a reverse proxy to forward `/api` and `/socket.io` to the backend. If the backend has a separate HTTPS origin, set `window.PEERLOOP_API_URL` before the frontend scripts load. Configure the backend's `APP_ORIGIN` to match the exact frontend origin.
 
 ## Smart contract
 
@@ -120,9 +123,9 @@ npx serve frontend -l 3000
 | `POST` | `/api/upload` | Upload an image to Pinata/IPFS. | Yes |
 | `GET` | `/api/config/rpc-url` | Retrieve the public Sepolia RPC URL. | No |
 
-Listings and purchases are sent directly to the smart contract. The cart is stored in browser local storage. The legacy MongoDB product and user route modules are not mounted by the current server. Sold and purchase history screens are not implemented yet.
+Listings and purchases are sent directly to the smart contract. Sold History and Purchase History are built from the contract's `ProductSold` events and product records. The cart is stored in browser local storage. The legacy MongoDB product and user route modules are not mounted by the current server.
 
-The currently deployed contract does not store product categories, so the category selected in the listing form is not persisted. Supporting categories on existing listings requires a contract update and redeployment; this source-only pass does not deploy contracts.
+The contract does not store product categories. The backend persists the selected category as listing metadata after verifying the listing owner on-chain. This means categories require the backend, MongoDB, and a valid `CONTRACT_ADDRESS` and `SEPOLIA_RPC_URL`; metadata is scoped to the deployed contract address.
 
 ## Technology
 
@@ -145,6 +148,6 @@ The currently deployed contract does not store product categories, so the catego
 
 ## Notes
 
-The contract listener currently polls for events. The frontend waits briefly before refreshing product data after transactions or events to reduce timing issues while the chain updates. The backend uses `SEPOLIA_RPC_URL` for its listener; the browser uses the public Sepolia RPC endpoint instead of receiving a credential-bearing URL.
+The contract listener currently polls for live updates. History is read from the deployed contract's sale events and cached for the current page session; it does not require a contract redeployment. The frontend waits briefly before refreshing product data after transactions or events to reduce timing issues while the chain updates. The backend uses `SEPOLIA_RPC_URL` for its listener; the browser uses the public Sepolia RPC endpoint instead of receiving a credential-bearing URL.
 
-Possible future work includes storing categories on-chain, implementing account-history views, escrow settlement, support for additional storage providers, and deployment to a layer-2 network.
+Possible future work includes storing categories on-chain, escrow settlement, support for additional storage providers, and deployment to a layer-2 network.

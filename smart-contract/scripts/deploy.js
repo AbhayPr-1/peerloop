@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { network } from 'hardhat';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   const { ethers } = await network.connect();
@@ -10,51 +13,32 @@ async function main() {
   const newAddress = marketplace.target;
   console.log(`Marketplace deployed to: ${newAddress}`);
 
-  // --- 1. Update frontend/js/contract.js ---
   const contractJsPath = path.resolve(__dirname, '../../frontend/js/contract.js');
-  try {
-    let content = fs.readFileSync(contractJsPath, 'utf8');
-    const addressRegex = /const marketplaceAddress = ".*";/g;
-    const newLine = `const marketplaceAddress = "${newAddress}";`;
-    content = content.replace(addressRegex, newLine);
-    fs.writeFileSync(contractJsPath, content, 'utf8');
-    console.log(`Successfully updated frontend/js/contract.js with new address!`);
-  } catch (err) {
-    console.error('Failed to update frontend file:', err);
+  let contractJs = fs.readFileSync(contractJsPath, 'utf8');
+  const addressDeclaration = /const marketplaceAddress = ".*";/;
+  if (!addressDeclaration.test(contractJs)) {
+    throw new Error('Could not find marketplaceAddress declaration in frontend/js/contract.js.');
   }
-  
-  // --- 2. Update root .env file ---
+  contractJs = contractJs.replace(addressDeclaration, `const marketplaceAddress = "${newAddress}";`);
+  fs.writeFileSync(contractJsPath, contractJs, 'utf8');
+  console.log('Updated frontend/js/contract.js.');
+
   const rootEnvPath = path.resolve(__dirname, '../../.env');
   const rootEnvExamplePath = path.resolve(__dirname, '../../.env.example');
-  try {
-    let envContent = '';
-    if (fs.existsSync(rootEnvPath)) {
-      envContent = fs.readFileSync(rootEnvPath, 'utf8');
-    } else if (fs.existsSync(rootEnvExamplePath)) {
-      envContent = fs.readFileSync(rootEnvExamplePath, 'utf8');
-      console.log(`Created root .env from .env.example`);
-    }
-
-    const contractAddressKey = 'CONTRACT_ADDRESS';
-    const newEnvLine = `${contractAddressKey}=${newAddress}`;
-
-    // Regex to find and replace the old line, or append if it doesn't exist
-    const regex = new RegExp(`^${contractAddressKey}=.*`, 'm');
-    let newEnvContent;
-
-    if (envContent.match(regex)) {
-      newEnvContent = envContent.replace(regex, newEnvLine);
-    } else {
-      // Append a new line if it doesn't exist
-      newEnvContent = envContent ? (envContent.endsWith('\n') ? `${envContent}${newEnvLine}\n` : `${envContent}\n${newEnvLine}\n`) : `${newEnvLine}\n`;
-    }
-
-    fs.writeFileSync(rootEnvPath, newEnvContent, 'utf8');
-    console.log(`Successfully updated .env with new CONTRACT_ADDRESS!`);
-
-  } catch (err) {
-    console.error('Failed to update .env file:', err);
+  let envContent = '';
+  if (fs.existsSync(rootEnvPath)) {
+    envContent = fs.readFileSync(rootEnvPath, 'utf8');
+  } else if (fs.existsSync(rootEnvExamplePath)) {
+    envContent = fs.readFileSync(rootEnvExamplePath, 'utf8');
   }
+  const contractAddressKey = 'CONTRACT_ADDRESS';
+  const newEnvLine = `${contractAddressKey}=${newAddress}`;
+  const regex = new RegExp(`^${contractAddressKey}=.*`, 'm');
+  const newEnvContent = regex.test(envContent)
+    ? envContent.replace(regex, newEnvLine)
+    : `${envContent}${envContent && !envContent.endsWith('\n') ? '\n' : ''}${newEnvLine}\n`;
+  fs.writeFileSync(rootEnvPath, newEnvContent, 'utf8');
+  console.log('Updated root .env with CONTRACT_ADDRESS.');
 }
 
 main().catch((error) => {

@@ -5,6 +5,7 @@
  */
 
 const { spawn } = require('child_process');
+const net = require('net');
 const path = require('path');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -23,42 +24,121 @@ function log(msg, color = colors.reset) {
   console.log(`${color}${msg}${colors.reset}`);
 }
 
-log('\n=========================================================', colors.cyan);
-log('         ⚡ STARTING PEERLOOP DEVELOPMENT SUITE ⚡        ', colors.bold + colors.magenta);
-log('=========================================================\n', colors.cyan);
+function findAvailablePort(startPort, excludedPort = null) {
+  if (startPort > 65535) {
+    return Promise.reject(new Error('No available TCP port found in the configured port range.'));
+  }
+  if (startPort === excludedPort) return findAvailablePort(startPort + 1, excludedPort);
 
-log('🌐 Frontend Marketplace: http://localhost:3000', colors.bold + colors.green);
-log('🔌 Backend API Server:   http://localhost:5001\n', colors.bold + colors.cyan);
-log('---------------------------------------------------------', colors.cyan);
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        resolve(findAvailablePort(startPort + 1, excludedPort));
+      } else {
+        reject(error);
+      }
+    });
+    server.listen(startPort, () => {
+      server.close((error) => error ? reject(error) : resolve(startPort));
+    });
+  });
+}
 
-// Use a single shell command string with proper quoting for cross-platform compatibility
-const command = 'npx concurrently -n "BACKEND,FRONTEND" -c "cyan,magenta" --kill-others-on-fail "node ./backend/server.js" "npx serve frontend -l 3000"';
+async function start() {
+  const requestedFrontendPort = Number(process.env.FRONTEND_PORT || 3000);
+  const requestedBackendPort = Number(process.env.PORT || 5001);
 
-const child = spawn(command, [], {
-  stdio: 'inherit',
-  cwd: ROOT_DIR,
-  shell: true,
-  env: { ...process.env }
-});
+  if (!Number.isInteger(requestedFrontendPort) || requestedFrontendPort < 1 || requestedFrontendPort > 65535) {
+    throw new Error('FRONTEND_PORT must be a valid TCP port.');
+  }
+  if (!Number.isInteger(requestedBackendPort) || requestedBackendPort < 1 || requestedBackendPort > 65535) {
+    throw new Error('PORT must be a valid TCP port.');
+  }
 
-child.on('error', (err) => {
-  console.error('Failed to start development servers:', err);
-  process.exit(1);
-});
+  const frontendPort = await findAvailablePort(requestedFrontendPort);
+  const backendPort = await findAvailablePort(requestedBackendPort, frontendPort);
+  const frontendOrigin = `http://localhost:${frontendPort}`;
+  const apiUrl = `http://localhost:${backendPort}`;
 
-child.on('exit', (code) => {
-  process.exit(code);
-});
+  if (frontendPort !== requestedFrontendPort) {
+    log(`Port ${requestedFrontendPort} is already in use; using frontend port ${frontendPort}.`, colors.yellow);
+  }
+  if (backendPort !== requestedBackendPort) {
+    log(`Port ${requestedBackendPort} is already in use; using backend port ${backendPort}.`, colors.yellow);
+  }
 
-// Graceful shutdown handling
-process.on('SIGINT', () => {
-  log('\n🛑 Shutting down development servers...', colors.yellow);
-  child.kill('SIGINT');
-  process.exit(0);
-});
+  log('\n=========================================================', colors.cyan);
+  log('         ⚡ STARTING PEERLOOP DEVELOPMENT SUITE ⚡        ', colors.bold + colors.magenta);
+  log('=========================================================\n', colors.cyan);
 
-process.on('SIGTERM', () => {
-  log('\n🛑 Shutting down development servers...', colors.yellow);
-  child.kill('SIGTERM');
-  process.exit(0);
+  log(`🌐 Frontend Marketplace: ${frontendOrigin}`, colors.bold + colors.green);
+  log(`🔌 Backend API Server:   ${apiUrl}\n`, colors.bold + colors.cyan);
+  log('---------------------------------------------------------', colors.cyan);
+
+  const concurrentlyCli = path.join(ROOT_DIR, 'node_modules', 'concurrently', 'dist', 'bin', 'index.js');
+  const child = spawn(process.execPath, [
+    concurrentlyCli,
+    '-n',
+    'BACKEND,FRONTEND',
+    '-c',
+    'cyan,magenta',
+    '--kill-others-on-fail',
+    'node ./backend/server.js',
+    'node ./scripts/frontend-dev.js'
+  ], {
+    stdio: 'inherit',
+    cwd: ROOT_DIR,
+    env: {
+      ...process.env,
+      PORT: String(backendPort),
+      FRONTEND_PORT: String(frontendPort),
+      APP_ORIGIN: frontendOrigin,
+      PEERLOOP_API_URL: apiUrl
+    }
+  });
+
+  let shuttingDown = false;
+
+  child.on('error', (err) => {
+    console.error('Failed to start development servers:', err);
+    process.exitCode = 1;
+  });
+
+  child.on('exit', (code) => {
+    process.exitCode = shuttingDown ? 0 : (code ?? 1);
+  });
+
+  // Graceful shutdown handling
+  function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    log('\n🛑 Shutting down development servers...', colors.yellow);
+
+    if (process.platform === 'win32' && child.pid) {
+      // Stop concurrently and its server descendants; killing only the shell leaves them running.
+      const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      killer.on('error', (err) => {
+        console.error('Failed to stop development server processes:', err.message);
+        child.kill(signal);
+      });
+      killer.on('exit', (code) => {
+        if (code !== 0 && child.exitCode === null) {
+          console.error('Failed to stop development server process tree.');
+          child.kill(signal);
+        }
+      });
+      return;
+    }
+
+    child.kill(signal);
+  }
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+}
+
+start().catch((error) => {
+  console.error('Failed to select development server ports:', error.message);
+  process.exitCode = 1;
 });

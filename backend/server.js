@@ -40,11 +40,12 @@ mongoose.connect(mongoUri)
 // --- API Routes ---
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/upload', require('./routes/upload'));
-app.use('/api/config', require('./routes/config')); // <— ADDED LINE
+app.use('/api/listing-metadata', require('./routes/listingMetadata'));
+app.use('/api/config', require('./routes/config'));
 
 // --- Socket.IO Connection ---
 io.on('connection', (socket) => {
-  console.log('User connected to Socket.IO.');
+  console.log(`User connected to Socket.IO: ${socket.id} (${socket.conn.transport.name}).`);
 
   // Log disconnection reasons
   socket.on('disconnect', (reason) => {
@@ -74,10 +75,13 @@ server.listen(PORT, () => {
     console.warn('Skipping blockchain listener because SEPOLIA_RPC_URL is still a placeholder. Add a real RPC URL in root .env to enable live contract events.');
   }
 
-  // graceful shutdown
-  process.on('SIGINT', async () => {
-    console.log('SIGINT received - stopping listener and server...');
+  const shutdown = (signal) => {
+    console.log(`${signal} received - stopping listener and server...`);
     if (listenerHandle && typeof listenerHandle.stop === 'function') listenerHandle.stop();
-    server.close(() => process.exit(0));
-  });
+    server.close(() => {
+      mongoose.disconnect().finally(() => process.exit(0));
+    });
+  };
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
 });

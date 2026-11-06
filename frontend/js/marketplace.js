@@ -1,21 +1,20 @@
 // frontend/js/marketplace.js
 
-// ** NEW HELPER FUNCTION **
+const realtimeRemovedProductIds = new Set();
+let productRefreshVersion = 0;
+
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-// ** END NEW HELPER FUNCTION **
 
 function createProductCard(product) {
   const card = document.createElement("div");
   card.className = "theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col";
   
-  // *** UPDATED: Format the address for display ***
   const sellerAddress = product.seller;
   const sellerDisplay = (product.seller && product.seller.name) ? product.seller.name : formatAddress(sellerAddress);
   
   const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
-  const imageUrl = safeImageUrl(product.imageUrl);
 
   let actionButtons = "";
   if (!currentUser || (currentUser && currentUser.walletAddress.toLowerCase() !== product.seller.toLowerCase())) {
@@ -26,7 +25,7 @@ function createProductCard(product) {
   }
 
   card.innerHTML = `
-    <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4 cursor-pointer quick-view-trigger">
+    <img alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4 cursor-pointer quick-view-trigger">
     <h3 class="text-2xl font-bold text-neon-blue mb-2">${escapeHtml(product.name)}</h3>
     <p class="text-gray-400 flex-1 mb-4">${escapeHtml(product.description)}</p>
     <div class="text-sm mb-2" style="overflow-wrap: break-word;">
@@ -36,6 +35,7 @@ function createProductCard(product) {
       <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
       <span class="text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
     </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
+  setResilientImage(card.querySelector('img'), product.imageUrl);
 
   const buyNowBtn = card.querySelector(".buy-now-btn");
   if (buyNowBtn) {
@@ -82,46 +82,86 @@ function renderProducts(list) {
   list.forEach(p => grid.appendChild(createProductCard(p)));
 }
 
-async function fetchProducts(waitForSync = false) { // Added parameter
-    const grid = document.getElementById("product-grid");
-    
-    let skeletonHTML = '';
-    for (let i = 0; i < 6; i++) {
-        skeletonHTML += `<div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>`;
+async function loadProductsFromChain() {
+    const productsFromChain = await readMarketplaceProducts();
+    let categories = {};
+    try {
+        const categoryResponse = await fetchWithTimeout(
+            `${API_URL}/api/listing-metadata`,
+            { cache: 'no-store' },
+            1500
+        );
+        if (!categoryResponse.ok) {
+            throw new Error(`Category service returned HTTP ${categoryResponse.status}.`);
+        }
+        const categoryData = await categoryResponse.json();
+        if (!categoryData || typeof categoryData !== 'object' || Array.isArray(categoryData)) {
+            throw new Error('Category service returned invalid data.');
+        }
+        categories = categoryData;
+    } catch (error) {
+        console.warn('Listing categories are unavailable; showing products with their default category.', error.message);
     }
-    grid.innerHTML = skeletonHTML;
+
+    return productsFromChain
+        .filter(p => !realtimeRemovedProductIds.has(p.id.toString()))
+        .map(p => ({
+            _id: p.id.toString(),
+            name: String(p.name || ''),
+            description: String(p.description || ''),
+            price: Number(ethers.utils.formatEther(p.price)),
+            seller: String(p.seller || ''),
+            imageUrl: String(p.imageUrl || ''),
+            category: categories[p.id.toString()] || 'data',
+            isSold: Boolean(p.isSold)
+        }));
+}
+
+async function fetchProducts(waitForSync = false, retryCount = 0) {
+    const grid = document.getElementById("product-grid");
+    const refreshVersion = ++productRefreshVersion;
+    if (!waitForSync) {
+        const loadingMessage = document.createElement('p');
+        loadingMessage.className = 'text-center text-gray-500 col-span-full';
+        loadingMessage.textContent = 'Loading Explore Gears...';
+        grid.replaceChildren(loadingMessage);
+    }
 
     try {
-        // CRITICAL: If triggered by a transactional event (waitForSync=true), wait 1000ms for RPC sync
         if (waitForSync) {
-            await delay(1000); 
-        } else {
+            await delay(1000);
         }
 
-        const productsFromChain = await readOnlyContract.getAllForSaleProducts();
-
-        
-        
-        allProducts = productsFromChain.map(p => ({
-            _id: p.id.toString(),
-            name: p.name,
-            description: p.description,
-            price: parseFloat(ethers.utils.formatEther(p.price)),
-            seller: p.seller,
-            imageUrl: p.imageUrl,
-            category: 'Data', 
-            isSold: p.isSold
-        }));
-        
+        const products = await loadProductsFromChain();
+        if (refreshVersion !== productRefreshVersion) return;
+        allProducts = products;
         filterAndSortProducts();
         
     } catch (error) {
+        if (refreshVersion !== productRefreshVersion) return;
         console.error("Failed to fetch products:", error);
-        if (error.message.includes("network")) {
-            grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: Could not connect to the Sepolia network. Please check your connection.</p>`;
-        } else {
-            grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">Error: Could not load products from the blockchain.</p>`;
+        if (retryCount < 2) {
+            const retryMessage = document.createElement('p');
+            retryMessage.className = 'text-center text-gray-500 col-span-full';
+            retryMessage.textContent = 'Marketplace is taking longer than usual. Retrying...';
+            grid.replaceChildren(retryMessage);
+            setTimeout(() => {
+                if (refreshVersion === productRefreshVersion
+                    && !document.getElementById('marketplace').classList.contains('hidden')) {
+                    fetchProducts(false, retryCount + 1);
+                }
+            }, 1000 * (retryCount + 1));
+            return;
         }
+        const details = error.shortMessage
+            || error.reason
+            || error.error?.message
+            || error.message
+            || 'Unknown error';
+        const errorMessage = document.createElement('p');
+        errorMessage.className = 'text-center text-red-500 col-span-full';
+        errorMessage.textContent = `Could not load Explore Gears after retrying: ${details}`;
+        grid.replaceChildren(errorMessage);
     }
 }
 
@@ -160,7 +200,6 @@ async function buyNow(product, buttonElement = null) {
     
     showMessage("Purchase Successful!");
 
-    // CRITICAL: FORCE REFRESH with 1000ms delay
     fetchProducts(true); 
     
   } catch (error) {
@@ -202,7 +241,6 @@ async function deleteProduct(productId, buttonElement) {
       // Manual UI removal for immediate feedback (for the seller on the Listings page)
       buttonElement.closest('.card-neon-border').remove(); 
 
-      // CRITICAL: FORCE FETCH HERE FOR INSTANT UI UPDATE (triggers real-time for all users)
       fetchProducts(true); 
       
   } catch (error) {
