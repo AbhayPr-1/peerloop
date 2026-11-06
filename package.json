@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "setup": "node scripts/setup.js",
-    "dev": "concurrently -n \"backend,frontend\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "node scripts/dev.js",
+    "prod": "node scripts/prod.js",
     "dev:backend": "nodemon ./backend/server.js",
     "dev:frontend": "serve frontend -l 3000",
     "start": "node ./backend/server.js",

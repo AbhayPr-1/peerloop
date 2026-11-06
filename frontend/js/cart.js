@@ -68,16 +68,17 @@ function renderCart() {
   summaryEl.classList.remove('hidden');
   let total = 0;
   userCart.forEach(item => {
-    total += item.price;
+    const itemPrice = Number(item.price);
+    if (Number.isFinite(itemPrice)) total += itemPrice;
     const el = document.createElement('div');
     el.className = 'flex items-center space-x-4 bg-gray-800 p-4 rounded-xl card-neon-border';
-    const imageUrl = item.imageUrl || 'http://via.placeholder.com/300x200.png?text=No+Image';
+    const imageUrl = safeImageUrl(item.imageUrl);
     el.innerHTML = `
-      <img src="${imageUrl}" alt="${item.name}" class="w-16 h-16 object-cover rounded-md">
+      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name)}" class="w-16 h-16 object-cover rounded-md">
       <div class="flex-grow">
-        <h4 class="text-lg font-bold text-neon-blue">${item.name}</h4><p>${item.price.toFixed(4)} ETH</p>
+        <h4 class="text-lg font-bold text-neon-blue">${escapeHtml(item.name)}</h4><p>${(Number.isFinite(itemPrice) ? itemPrice : 0).toFixed(4)} ETH</p>
       </div>
-      <button class="remove-from-cart-btn text-red-500 hover:text-red-400 transition-colors" data-product-id="${item._id}">✖</button>`;
+      <button class="remove-from-cart-btn text-red-500 hover:text-red-400 transition-colors" data-product-id="${escapeHtml(item._id)}">✖</button>`;
     cont.appendChild(el);
   });
   totalEl.textContent = `${total.toFixed(4)} ETH`;

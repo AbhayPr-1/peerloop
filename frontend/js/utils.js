@@ -1,5 +1,18 @@
 // frontend/js/utils.js
-const API_URL = `http://${window.location.hostname}:5000`;
+const API_URL = `http://${window.location.hostname}:5001`;
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+}
+
+function safeImageUrl(value) {
+  try {
+    const url = new URL(String(value || ''), window.location.href);
+    if (url.protocol === 'https:' || url.protocol === 'http:') return url.href;
+  } catch (_) {}
+  return 'https://via.placeholder.com/300x200.png?text=No+Image';
+}
 
 let currentUser = null;
 let allProducts = [];
@@ -27,7 +40,7 @@ function checkAuthState() {
   if (token) {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.exp * 1000 > Date.now()) {
+      if (payload.authVersion === 2 && payload.exp * 1000 > Date.now()) {
         currentUser = { 
           id: payload.user.id, 
           name: payload.user.name, 
@@ -87,7 +100,7 @@ function createProfileProductCard(product, context) {
     let actionButtons = '';
     
     const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
-    const imageUrl = product.imageUrl || 'http://via.placeholder.com/300x200.png?text=No+Image';
+    const imageUrl = safeImageUrl(product.imageUrl);
 
     // *** UPDATED: Use formatAddress for display ***
     const sellerAddressDisplay = formatAddress(product.seller);
@@ -95,9 +108,9 @@ function createProfileProductCard(product, context) {
 
 
     if (context === 'sold' && product.buyer) {
-        contextInfo = `<p class="text-sm text-green-400 mb-2" style="overflow-wrap: break-word;">Sold to: ${product.buyer.name || buyerAddressDisplay}</p>`;
+        contextInfo = `<p class="text-sm text-green-400 mb-2" style="overflow-wrap: break-word;">Sold to: ${escapeHtml(product.buyer.name || buyerAddressDisplay)}</p>`;
     } else if (context === 'purchased' && product.seller) {
-        contextInfo = `<p class="text-sm text-yellow-400 mb-2" style="overflow-wrap: break-word;">Purchased from: ${product.seller.name || sellerAddressDisplay}</p>`;
+        contextInfo = `<p class="text-sm text-yellow-400 mb-2" style="overflow-wrap: break-word;">Purchased from: ${escapeHtml(product.seller.name || sellerAddressDisplay)}</p>`;
     } else if (context === 'listings') {
          contextInfo = `<p class="text-sm text-blue-400 mb-2">Status: Listed for sale</p>`;
          actionButtons = `
@@ -108,13 +121,13 @@ function createProfileProductCard(product, context) {
     }
 
     card.innerHTML = `
-        <img src="${imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4">
-        <h3 class="text-2xl font-bold text-neon-blue mb-2">${product.name}</h3>
+        <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4">
+        <h3 class="text-2xl font-bold text-neon-blue mb-2">${escapeHtml(product.name)}</h3>
         ${contextInfo}
-        <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
+        <p class="text-gray-400 flex-1 mb-4">${escapeHtml(product.description)}</p>
         <div class="flex items-center justify-between">
             <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-            <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
+            <span class="text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
         </div>
         ${actionButtons}
     `;

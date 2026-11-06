@@ -15,7 +15,7 @@ function createProductCard(product) {
   const sellerDisplay = (product.seller && product.seller.name) ? product.seller.name : formatAddress(sellerAddress);
   
   const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
-  const imageUrl = product.imageUrl || 'http://via.placeholder.com/300x200.png?text=No+Image';
+  const imageUrl = safeImageUrl(product.imageUrl);
 
   let actionButtons = "";
   if (!currentUser || (currentUser && currentUser.walletAddress.toLowerCase() !== product.seller.toLowerCase())) {
@@ -26,15 +26,15 @@ function createProductCard(product) {
   }
 
   card.innerHTML = `
-    <img src="${imageUrl}" alt="${product.name}" class="w-full h-48 object-cover rounded-xl mb-4 cursor-pointer quick-view-trigger">
-    <h3 class="text-2xl font-bold text-neon-blue mb-2">${product.name}</h3>
-    <p class="text-gray-400 flex-1 mb-4">${product.description}</p>
+    <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" class="w-full h-48 object-cover rounded-xl mb-4 cursor-pointer quick-view-trigger">
+    <h3 class="text-2xl font-bold text-neon-blue mb-2">${escapeHtml(product.name)}</h3>
+    <p class="text-gray-400 flex-1 mb-4">${escapeHtml(product.description)}</p>
     <div class="text-sm mb-2" style="overflow-wrap: break-word;">
-      Seller: <a href="#" class="seller-link">${sellerDisplay}</a>
+      Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
     </div>
     <div class="flex items-center justify-between mb-4">
       <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-      <span class="text-xs px-2 py-1 rounded bg-gray-700">${displayCategory}</span>
+      <span class="text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
     </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
 
   const buyNowBtn = card.querySelector(".buy-now-btn");
@@ -42,7 +42,7 @@ function createProductCard(product) {
     buyNowBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       if (!currentUser) return showAuthModal(); // Still need to be logged in to buy
-      const message = `Confirm purchase of <strong>${product.name}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>?`;
+      const message = `Confirm purchase of <strong>${escapeHtml(product.name)}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>?`;
       showConfirmationModal(message, () => buyNow(product, e.currentTarget));
     });
   }
@@ -94,18 +94,14 @@ async function fetchProducts(waitForSync = false) { // Added parameter
     try {
         // CRITICAL: If triggered by a transactional event (waitForSync=true), wait 1000ms for RPC sync
         if (waitForSync) {
-            console.log("DEBUG: fetchProducts: Waiting 1000ms for RPC node synchronization.");
             await delay(1000); 
         } else {
-            console.log("DEBUG: fetchProducts: Executing without delay.");
         }
 
         const productsFromChain = await readOnlyContract.getAllForSaleProducts();
 
         
-        // DEBUG: Log the result count to ensure we are getting fresh data.
-        console.log(`DEBUG: fetchProducts: Received ${productsFromChain.length} items from contract.`);
-
+        
         allProducts = productsFromChain.map(p => ({
             _id: p.id.toString(),
             name: p.name,
@@ -120,7 +116,7 @@ async function fetchProducts(waitForSync = false) { // Added parameter
         filterAndSortProducts();
         
     } catch (error) {
-        console.error("DEBUG: fetchProducts FAILED:", error);
+        console.error("Failed to fetch products:", error);
         if (error.message.includes("network")) {
             grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Error: Could not connect to the Sepolia network. Please check your connection.</p>`;
         } else {
@@ -163,13 +159,12 @@ async function buyNow(product, buttonElement = null) {
     await tx.wait(); 
     
     showMessage("Purchase Successful!");
-    console.log("DEBUG: buyNow: Transaction confirmed. Triggering global fetch (true).");
 
     // CRITICAL: FORCE REFRESH with 1000ms delay
     fetchProducts(true); 
     
   } catch (error) {
-    console.error("DEBUG: buyNow FAILED:", error);
+    console.error("Purchase failed:", error);
     let errorMessage = "Transaction failed. Please check console for details.";
 
     if (error.reason) {
@@ -206,13 +201,12 @@ async function deleteProduct(productId, buttonElement) {
       
       // Manual UI removal for immediate feedback (for the seller on the Listings page)
       buttonElement.closest('.card-neon-border').remove(); 
-      console.log("DEBUG: deleteProduct: Transaction confirmed. Triggering global fetch (true).");
 
       // CRITICAL: FORCE FETCH HERE FOR INSTANT UI UPDATE (triggers real-time for all users)
       fetchProducts(true); 
       
   } catch (error) {
-      console.error("DEBUG: deleteProduct FAILED:", error);
+      console.error("Product deletion failed:", error);
       let errorMessage = "Transaction failed. Please check console for details.";
       if (error.reason) {
           errorMessage = error.reason;

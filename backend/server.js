@@ -1,15 +1,11 @@
 // backend/server.js
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // Fix MongoDB Atlas DNS resolution
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
-// optional debug (keep while testing)
-console.log('DEBUG: SEPOLIA_RPC_URL configured =', !!process.env.SEPOLIA_RPC_URL, process.env.SEPOLIA_RPC_URL && process.env.SEPOLIA_RPC_URL.includes('your_') ? '(placeholder)' : '');
-console.log('DEBUG: CONTRACT_ADDRESS configured =', !!process.env.CONTRACT_ADDRESS);
-console.log('DEBUG: MONGO_URI configured =', !!process.env.MONGO_URI);
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -19,9 +15,10 @@ const startContractListener = require('./contractListener');
 
 const app = express();
 const server = http.createServer(app);
+const APP_ORIGIN = process.env.APP_ORIGIN || 'http://localhost:3000';
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: APP_ORIGIN,
     methods: ["GET", "POST"]
   },
   // FIX: Explicitly configure aggressive timeouts to prevent "transport close"
@@ -30,7 +27,7 @@ const io = new Server(server, {
 });
 
 // --- Middleware ---
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: APP_ORIGIN }));
 app.use(express.json({ limit: '5mb' }));
 
 // --- Database Connection ---
@@ -60,12 +57,21 @@ io.on('connection', (socket) => {
 });
 
 // --- Start Server ---
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Stop the other process or set a different PORT in the root .env file.`);
+  } else {
+    console.error('Backend server failed to start:', err);
+  }
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
   const listenerHandle = startContractListener(io, { pollIntervalMs: 3000, lookbackBlocks: 3 });
   if (!process.env.SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL.includes('your_')) {
-    console.warn('Skipping blockchain listener because SEPOLIA_RPC_URL is still a placeholder. Add a real RPC URL in backend/.env to enable live contract events.');
+    console.warn('Skipping blockchain listener because SEPOLIA_RPC_URL is still a placeholder. Add a real RPC URL in root .env to enable live contract events.');
   }
 
   // graceful shutdown

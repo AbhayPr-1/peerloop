@@ -289,7 +289,7 @@ const marketplaceABI = [
 
 // // --- CONTRACT INITIALIZATION ---
 
-// readOnlyContract: always uses the Alchemy RPC, safe for view calls regardless of
+// readOnlyContract: always uses the public Sepolia RPC, independent of
 // which network MetaMask is currently connected to. Never gets replaced.
 let readOnlyContract = null;
 
@@ -300,10 +300,10 @@ let marketplaceContract = null;
 let signer = null;
 
 // Fallback RPC URL used if the backend is unreachable
-const FALLBACK_RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/alch_yHvcE0Qup3Q0iqqT1C3FZ";
+const FALLBACK_RPC_URL = "https://rpc.sepolia.org";
 
 // Fetches the RPC URL from the backend and initializes the read-only contract.
-// Falls back to the bundled RPC URL if the backend is unavailable.
+// Falls back to the public Sepolia RPC URL if the backend is unavailable.
 async function initializeReadOnlyProvider() {
     let rpcUrl = FALLBACK_RPC_URL;
     try {
@@ -329,7 +329,7 @@ async function initializeReadOnlyProvider() {
 }
 
 // Upgrades marketplaceContract to a write-capable instance connected to the user's signer.
-// readOnlyContract is intentionally NEVER replaced — it always uses the stable Alchemy RPC
+// readOnlyContract is intentionally NEVER replaced — it always uses the public Sepolia RPC
 // so that view calls work regardless of which network MetaMask is on.
 async function connectContractToSigner(loggedInSigner) {
     if (!loggedInSigner) {
@@ -379,7 +379,7 @@ async function ensureSepoliaNetwork() {
                             chainId: SEPOLIA_HEX_CHAIN_ID,
                             chainName: "Sepolia Testnet",
                             nativeCurrency: { name: "Sepolia ETH", symbol: "SEP", decimals: 18 },
-                            rpcUrls: ["https://rpc.sepolia.org", "https://eth-sepolia.g.alchemy.com/v2/alch_yHvcE0Qup3Q0iqqT1C3FZ"],
+                            rpcUrls: ["https://rpc.sepolia.org"],
                             blockExplorerUrls: ["https://sepolia.etherscan.io"],
                         },
                     ],

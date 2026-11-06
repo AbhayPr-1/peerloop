@@ -23,21 +23,21 @@ async function main() {
     console.error('Failed to update frontend file:', err);
   }
   
-  // --- 2. Update backend/.env file ---
-  const backendEnvPath = path.resolve(__dirname, '../../backend/.env');
-  const backendEnvExamplePath = path.resolve(__dirname, '../../backend/.env.example');
+  // --- 2. Update root .env file ---
+  const rootEnvPath = path.resolve(__dirname, '../../.env');
+  const rootEnvExamplePath = path.resolve(__dirname, '../../.env.example');
   try {
     let envContent = '';
-    if (fs.existsSync(backendEnvPath)) {
-      envContent = fs.readFileSync(backendEnvPath, 'utf8');
-    } else if (fs.existsSync(backendEnvExamplePath)) {
-      envContent = fs.readFileSync(backendEnvExamplePath, 'utf8');
-      console.log(`Created backend/.env from backend/.env.example`);
+    if (fs.existsSync(rootEnvPath)) {
+      envContent = fs.readFileSync(rootEnvPath, 'utf8');
+    } else if (fs.existsSync(rootEnvExamplePath)) {
+      envContent = fs.readFileSync(rootEnvExamplePath, 'utf8');
+      console.log(`Created root .env from .env.example`);
     }
 
     const contractAddressKey = 'CONTRACT_ADDRESS';
-    const newEnvLine = `${contractAddressKey}="${newAddress}"`;
-    
+    const newEnvLine = `${contractAddressKey}=${newAddress}`;
+
     // Regex to find and replace the old line, or append if it doesn't exist
     const regex = new RegExp(`^${contractAddressKey}=.*`, 'm');
     let newEnvContent;
@@ -49,11 +49,11 @@ async function main() {
       newEnvContent = envContent ? (envContent.endsWith('\n') ? `${envContent}${newEnvLine}\n` : `${envContent}\n${newEnvLine}\n`) : `${newEnvLine}\n`;
     }
 
-    fs.writeFileSync(backendEnvPath, newEnvContent, 'utf8');
-    console.log(`Successfully updated backend/.env with new CONTRACT_ADDRESS!`);
+    fs.writeFileSync(rootEnvPath, newEnvContent, 'utf8');
+    console.log(`Successfully updated .env with new CONTRACT_ADDRESS!`);
 
   } catch (err) {
-    console.error('Failed to update backend/.env file:', err);
+    console.error('Failed to update .env file:', err);
   }
 }
 

@@ -1,249 +1,150 @@
-# ⚡ PeerLoop – A Decentralized P2P Marketplace
+# PeerLoop
 
-**PeerLoop** is a full-stack decentralized peer-to-peer marketplace with a cyberpunk neon aesthetic, enabling users to buy and sell directly via the **Ethereum Virtual Machine (EVM)**, with no central intermediary.
+PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. Users connect a MetaMask wallet to list and buy products. The application also includes a Node.js backend for user sessions, image uploads, and live marketplace updates.
 
-The application is built using a **hybrid architecture: a Node.js/Express.js backend** for authentication/storage, and a **Hardhat/Solidity smart contract** for core marketplace logic (listing, buying, deleting). Real-time updates are handled by **Socket.IO and an Ethers.js Contract Listener**.
+## How it works
 
----
+- The Solidity contract handles product listings, purchases, and deletions.
+- The Express backend manages wallet-based login, user data, and image uploads.
+- Product images are uploaded to Pinata and stored on IPFS.
+- An Ethers.js listener watches contract events and sends updates to the frontend through Socket.IO.
+- The frontend is a client-side JavaScript application. Cart data is stored in the browser.
 
-## 🎯 Project Philosophy – *Web3-Native Commerce*
+## Requirements
 
-PeerLoop transitions the core business logic—the transfer of assets (ETH) for goods (Products)—to an on-chain smart contract, ensuring **true peer-to-peer, trustless commerce**. The Node.js backend serves as a secure data layer (users, image hosting) and the real-time nervous system connecting clients to the blockchain's events. The cyberpunk aesthetic reinforces the theme of user autonomy and decentralized financial systems.
+- Node.js 18 or later
+- MongoDB, either local or hosted
+- MetaMask
+- An Alchemy or Infura Sepolia RPC URL
+- Pinata credentials for image uploads
 
----
+Hardhat is installed with the smart-contract dependencies; a global installation is not required.
 
-## ✨ Features
+## Quick start
 
-### 🔐 Web3 Authentication
-- Login with MetaMask wallet address  
-- Backend creates JWT session for secure API usage
-
-### 💸 On-Chain Marketplace Logic
-Handled fully via Solidity:
-- `listProduct`
-- `buyProduct`
-- `deleteProduct`
-- Fetch products from `getAllForSaleProducts`
-
-### ⚡ Real-Time Synchronization
-- Backend runs a **polling-based Ethers.js listener**
-- Listens for:
-  - `ProductListed`
-  - `ProductSold`
-  - `ProductDeleted`
-- Emits live updates via Socket.IO  
-- Frontend re-fetches products with a **1000ms delay** for blockchain confirmation
-
-### 🖼️ IPFS Image Hosting
-- Product images stored on Pinata/IPFS  
-- Backend handles upload + returns public URL
-
-### 🛒 Dynamic Marketplace UI
-- Fully client-side SPA (Vanilla JS + Tailwind CSS)
-- LocalStorage-based cart system
-- Product state directly read from blockchain
-
----
-
-## 🧠 Application Architecture (Hybrid Model)
-
-| Component | Technology | Role |
-|----------|------------|------|
-| ⛓️ **Blockchain Layer** | Solidity, Hardhat | Core logic for trustless exchange (ETH ↔ Product) |
-| 🧩 **Backend/API** | Node.js, Express, MongoDB, Ethers.js | Authentication, user metadata, image upload, contract listener |
-| 💻 **Frontend (SPA)** | Vanilla JS, Tailwind, Ethers.js, Socket.IO | Executes transactions, real-time UI updates, renders marketplace |
-| 🗄️ **Storage** | MongoDB + Pinata/IPFS | User data + image hosting |
-
----
-
-# 🚀 Getting Started
-
-## 📋 Prerequisites
-
-| Requirement | Link |
-|------------|------|
-| **Node.js** (v18+) | [nodejs.org](https://nodejs.org/) |
-| **MongoDB** (local or Atlas) | [mongodb.com](https://www.mongodb.com/) |
-| **MetaMask** browser extension | [Chrome Web Store](https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn?hl=en) |
-| **Alchemy or Infura** (Sepolia RPC) | [alchemy.com](https://www.alchemy.com/) / [infura.io](https://www.infura.io/) |
-| **Pinata** (IPFS image uploads) | [pinata.cloud](https://pinata.cloud/) |
-
-> Hardhat is auto-installed via npm — no global install needed.
-
----
-
-## ⚡ 1-Minute Automated Quickstart
-
-The fastest way to get PeerLoop running after cloning:
+Clone the repository and install its dependencies:
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/AbhayPr-1/peerloop.git
 cd peerloop
-
-# 2. Run the automated setup (installs all dependencies + creates .env files)
 npm run setup
+```
 
-# 3. Fill in your API keys in the generated .env files
-#    → backend/.env       (MongoDB URI, Pinata, Alchemy RPC)
-#    → smart-contract/.env (only needed if deploying your own contract)
+The setup command installs dependencies and creates the environment-file templates. Add your configuration values to the generated `.env` files, then start the application:
 
-# 4. Start both Backend + Frontend with a single command
+```bash
 npm run dev
 ```
 
-🎉 **That's it!** Open [http://localhost:3000](http://localhost:3000) in your browser.
+The frontend is served at [http://localhost:3000](http://localhost:3000). The backend runs on port 5001.
 
-> **What does `npm run setup` do?**
-> 1. Creates `backend/.env` from template with an auto-generated secure `JWT_SECRET`
-> 2. Creates `smart-contract/.env` from template
-> 3. Installs root dependencies (Express, Socket.IO, etc.)
-> 4. Installs smart contract dependencies (Hardhat, Solidity toolbox)
-> 5. Prints a clear checklist of remaining configuration steps
+## Configuration
 
----
+Set the following values in the root `.env` file:
 
-## 🔧 Environment Variables Reference
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | Backend port; defaults to `5001`. |
+| `MONGO_URI` | MongoDB connection string. |
+| `JWT_SECRET` | Secret used to sign session tokens. The setup script can generate one. |
+| `SEPOLIA_RPC_URL` | Backend RPC endpoint used by the contract event listener. It is not sent to the browser. |
+| `APP_ORIGIN` | Allowed frontend origin; defaults to `http://localhost:3000`. Set this to the deployed frontend URL in production. |
+| `CONTRACT_ADDRESS` | Address of the deployed marketplace contract. |
+| `PRIVATE_KEY` | Wallet key used for contract deployment. |
+| `PINATA_JWT` | Optional Pinata credential for IPFS uploads. |
 
-### `backend/.env`
+Never commit `.env` files or share private keys. They are excluded by `.gitignore`.
 
-| Variable | Required | Description | Where to get it |
-|----------|----------|-------------|-----------------|
-| `PORT` | ✅ | Backend server port | Default: `5000` |
-| `MONGO_URI` | ✅ | MongoDB connection string | Local: `mongodb://127.0.0.1:27017/peerloop` or [MongoDB Atlas](https://www.mongodb.com/atlas) |
-| `JWT_SECRET` | ✅ | Session token secret | ⚡ Auto-generated by `npm run setup` |
-| `SEPOLIA_RPC_URL` | ✅ | Ethereum Sepolia RPC URL | [Alchemy Dashboard](https://dashboard.alchemy.com/) → Create App → Sepolia |
-| `CONTRACT_ADDRESS` | ✅ | Deployed marketplace contract | Pre-filled with default. Auto-updated on `npm run contracts:deploy` |
-| `PINATA_JWT` | ⚠️ Optional | Pinata JWT for IPFS uploads | [Pinata API Keys](https://app.pinata.cloud/developers/api-keys) |
-| `PINATA_API_KEY` | ⚠️ Optional | Pinata API key (alt to JWT) | Same as above |
-| `PINATA_API_SECRET` | ⚠️ Optional | Pinata API secret (alt to JWT) | Same as above |
+## Smart contract
 
-### `smart-contract/.env`
+To compile the contract:
 
-| Variable | Required | Description | Where to get it |
-|----------|----------|-------------|-----------------|
-| `SEPOLIA_RPC_URL` | ✅ | Ethereum Sepolia RPC URL | [Alchemy Dashboard](https://dashboard.alchemy.com/) |
-| `PRIVATE_KEY` | ✅ | Deployer wallet private key | MetaMask → Account Details → Show Private Key |
+```bash
+npm run contracts:compile
+```
 
-> ⚠️ **Security**: Never commit `.env` files or expose private keys. The `.gitignore` is already configured to exclude them.
+To deploy to Sepolia:
 
----
+```bash
+npm run contracts:deploy
+```
 
-## 📜 All Available NPM Scripts
+The deploy script updates the contract address in the root environment and `frontend/js/contract.js`. For local development, use:
 
-Run these from the **project root** directory:
+```bash
+npm run contracts:deploy:local
+```
+
+## Available commands
 
 | Command | Description |
-|---------|-------------|
-| `npm run setup` | 🔧 **One-time setup**: Installs all deps + creates `.env` files |
-| `npm run dev` | 🚀 **Start everything**: Runs backend (port 5000) + frontend (port 3000) concurrently |
-| `npm run dev:backend` | Start only the backend server with hot-reload (nodemon) |
-| `npm run dev:frontend` | Start only the frontend static server |
-| `npm start` | Start backend in production mode (no hot-reload) |
-| `npm run contracts:compile` | Compile Solidity smart contracts |
-| `npm run contracts:deploy` | Deploy contract to Sepolia testnet |
-| `npm run contracts:deploy:local` | Deploy contract to local Hardhat network |
+| --- | --- |
+| `npm run setup` | Install dependencies and create environment-file templates. |
+| `npm run dev` | Start the backend and frontend for development. |
+| `npm run prod` | Start both servers without development hot reload. |
+| `npm run dev:backend` | Start the backend with nodemon. |
+| `npm run dev:frontend` | Serve the frontend on port 3000. |
+| `npm start` | Start the backend in production mode. |
+| `npm run contracts:compile` | Compile the Solidity contracts. |
+| `npm run contracts:deploy` | Deploy the contract to Sepolia. |
+| `npm run contracts:deploy:local` | Deploy to a local Hardhat network. |
 
----
+## Manual setup
 
-# 📖 Manual Setup (Step-by-Step)
-
-If you prefer setting things up manually instead of using `npm run setup`:
-
-## 1️⃣ Smart Contract Setup & Deployment
+Install root dependencies and configure the root `.env` file:
 
 ```bash
-# Navigate to the contract folder
+npm install
+```
+
+Install smart-contract dependencies and configure its environment as needed:
+
+```bash
 cd smart-contract
-
-# Install dependencies
 npm install
-
-# Create .env (copy from template and fill in your keys)
-cp .env.example .env
-
-# Deploy contract to Sepolia
-npx hardhat run scripts/deploy.js --network sepolia
 ```
 
-✔ The deploy script automatically updates:
-- `backend/.env → CONTRACT_ADDRESS`  
-- `frontend/js/contract.js → contractAddress`  
-
-## 2️⃣ Backend Setup
+To run individual processes from the project root:
 
 ```bash
-# Navigate to root (backend deps are in root package.json)
-cd ..
-
-# Install dependencies
-npm install
-
-# Create .env (copy from template and fill in your keys)
-cp backend/.env.example backend/.env
-
-# Run the backend
 npx nodemon ./backend/server.js
-```
-
-➡ Runs at: **http://localhost:5000**  
-Starts: Express API, Contract Polling Listener, Socket.IO server
-
-## 3️⃣ Frontend Setup
-
-```bash
-# Serve the frontend UI (from project root)
 npx serve frontend -l 3000
 ```
 
-➡ Runs at: **http://localhost:3000**
+## API routes
 
----
+| Method | Path | Purpose | Authentication |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/nonce` | Create a short-lived wallet sign-in challenge. | No |
+| `POST` | `/api/auth/metamask` | Verify the wallet's signature and issue a session token. | No |
+| `POST` | `/api/upload` | Upload an image to Pinata/IPFS. | Yes |
+| `GET` | `/api/config/rpc-url` | Retrieve the public Sepolia RPC URL. | No |
 
-# 🔗 API Reference
+Listings and purchases are sent directly to the smart contract. The cart is stored in browser local storage. The legacy MongoDB product and user route modules are not mounted by the current server. Sold and purchase history screens are not implemented yet.
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| **POST** | `/api/auth/metamask` | Login/Register user using wallet address | ❌ |
-| **POST** | `/api/upload` | Upload product image to Pinata/IPFS | ✅ |
-| **GET** | `/api/config/rpc-url` | Get Sepolia RPC URL for frontend | ❌ |
-| **GET** | `/api/users/cart` | Fetch user cart | ✅ |
-| **POST** | `/api/users/cart/:prodId` | Add product to cart | ✅ |
-| **DELETE** | `/api/users/cart/:prodId` | Remove product from cart | ✅ |
+The currently deployed contract does not store product categories, so the category selected in the listing form is not persisted. Supporting categories on existing listings requires a contract update and redeployment; this source-only pass does not deploy contracts.
 
----
+## Technology
 
-# 🧪 Tech Stack
+- Solidity and Hardhat
+- Node.js and Express
+- MongoDB and Mongoose
+- Ethers.js and Socket.IO
+- Vanilla JavaScript
+- Pinata and IPFS
+- Ethereum Sepolia testnet
 
-- **Smart Contract:** Solidity, Hardhat  
-- **Backend:** Node.js, Express.js, MongoDB, Socket.IO  
-- **Frontend:** Vanilla JS, TailwindCSS, Ethers.js  
-- **Decentralized Storage:** Pinata + IPFS  
-- **Blockchain Network:** Ethereum Sepolia Testnet  
+## Troubleshooting
 
----
+- If setup fails, check that Node.js 18 or later is installed. On Windows, try Command Prompt or Git Bash if PowerShell blocks scripts.
+- If MongoDB cannot connect, make sure the database is running or verify `MONGO_URI`.
+- If MetaMask does not connect, switch it to Sepolia and make sure the browser extension is enabled.
+- If contract events are not detected, check `SEPOLIA_RPC_URL` and `CONTRACT_ADDRESS`.
+- If image uploads fail, check the Pinata credentials in `.env`.
+- If the frontend cannot reach the backend, confirm that the backend is running on port 5001.
 
-# 🛠️ Troubleshooting
+## Notes
 
-| Issue | Solution |
-|-------|----------|
-| `npm run setup` fails | Make sure Node.js v18+ is installed. On Windows, run in **Command Prompt** or **Git Bash** if PowerShell blocks scripts. |
-| MongoDB connection error | Ensure MongoDB is running locally (`mongod`) or update `MONGO_URI` in `backend/.env` to your Atlas connection string. |
-| MetaMask not connecting | Make sure MetaMask is set to **Sepolia Test Network**. Get free test ETH from [sepoliafaucet.com](https://sepoliafaucet.com/). |
-| Contract listener not detecting events | Verify `SEPOLIA_RPC_URL` and `CONTRACT_ADDRESS` are correct in `backend/.env`. |
-| CORS errors in browser | The backend allows all origins by default. Check that the backend is running on port 5000. |
-| Image upload fails | Verify your Pinata credentials (`PINATA_JWT` or `PINATA_API_KEY` + `PINATA_API_SECRET`) in `backend/.env`. |
+The contract listener currently polls for events. The frontend waits briefly before refreshing product data after transactions or events to reduce timing issues while the chain updates. The backend uses `SEPOLIA_RPC_URL` for its listener; the browser uses the public Sepolia RPC endpoint instead of receiving a credential-bearing URL.
 
----
-
-# 🚀 Future Improvements
-- Add escrow-based settlement  
-- Improve decentralized storage fallback (multiple pinning providers)  
-- Notifications via wallet signatures  
-- Migrate to Layer 2 (Base / Arbitrum) for cheaper gas
-
----
-
-# 🧾 Notes
-- The backend's contract listener currently uses polling; consider switching to WebSocket providers (Alchemy/Infura) for more efficient event handling.  
-- Frontend uses `fetchProducts(true)` with a 1000ms delay after events/tx to reduce UI race conditions with finality.
+Possible future work includes storing categories on-chain, implementing account-history views, escrow settlement, support for additional storage providers, and deployment to a layer-2 network.

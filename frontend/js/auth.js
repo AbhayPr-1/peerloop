@@ -1,5 +1,4 @@
 // frontend/js/auth.js
-
 function showAuthModal() {
   const modal = document.getElementById('auth-modal');
   const content = modal.querySelector('.modal-content');
@@ -19,15 +18,22 @@ function closeAuthModal() {
 }
 
 async function handleMetaMaskLogin(buttonElement) {
-    if (typeof window.ethereum === 'undefined') {
-        return showMessage('No browser wallet detected!');
+    setButtonLoading(buttonElement, true, 'Detecting wallet...');
+
+    // Use robust detection so async-injected wallets (Rabby, Brave Wallet,
+    // Phantom, Coinbase, and MetaMask in some setups) are found reliably.
+    const detected = await window.WalletDetection.detectWalletProvider();
+    const walletProvider = (detected && detected.provider) || window.ethereum;
+
+    if (!walletProvider) {
+        setButtonLoading(buttonElement, false);
+        const msg = await window.WalletDetection.getNoWalletMessage();
+        return showMessage(msg);
     }
-    
-    setButtonLoading(buttonElement, true, 'Connecting...');
-    
+
     try {
         await ensureSepoliaNetwork();
-        const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+        const provider = new ethers.providers.Web3Provider(walletProvider, "any");
         await provider.send("eth_requestAccounts", []);
         const signer = provider.getSigner();
         const walletAddress = await signer.getAddress();
@@ -36,10 +42,19 @@ async function handleMetaMaskLogin(buttonElement) {
             throw new Error("Could not get wallet address.");
         }
 
-        const response = await fetch(`${API_URL}/api/auth/metamask`, {
+        const challengeResponse = await fetch(`${API_URL}/api/auth/nonce`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ walletAddress }),
+        });
+        const challenge = await challengeResponse.json();
+        if (!challengeResponse.ok) throw new Error(challenge.msg || 'Could not start wallet sign-in');
+
+        const signature = await signer.signMessage(challenge.message);
+        const response = await fetch(`${API_URL}/api/auth/metamask`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletAddress, signature }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.msg || 'Login failed');

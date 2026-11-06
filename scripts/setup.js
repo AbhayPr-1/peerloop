@@ -34,14 +34,15 @@ function printBanner() {
   log('=========================================================\n', colors.cyan);
 }
 
-function setupBackendEnv() {
-  const envPath = path.join(BACKEND_DIR, '.env');
-  const examplePath = path.join(BACKEND_DIR, '.env.example');
+function setupRootEnv() {
+  const envPath = path.join(ROOT_DIR, '.env');
+  const examplePath = path.join(ROOT_DIR, '.env.example');
 
+  // Keep local credentials and settings intact on every setup run.
   if (!fs.existsSync(envPath)) {
     if (fs.existsSync(examplePath)) {
       let content = fs.readFileSync(examplePath, 'utf8');
-      
+
       // Auto-generate a secure random 64-character hex JWT secret
       const randomSecret = crypto.randomBytes(32).toString('hex');
       content = content.replace(
@@ -49,30 +50,22 @@ function setupBackendEnv() {
         `JWT_SECRET=${randomSecret}`
       );
 
-      fs.writeFileSync(envPath, content, 'utf8');
-      log('✔ Created backend/.env with an auto-generated secure JWT_SECRET!', colors.green);
+      try {
+        // The exclusive flag also protects an .env created between the check and write.
+        fs.writeFileSync(envPath, content, { encoding: 'utf8', flag: 'wx' });
+        log('✔ Created root .env from .env.example with a generated JWT_SECRET.', colors.green);
+      } catch (err) {
+        if (err.code === 'EEXIST') {
+          log('ℹ .env was created by another process (kept intact).', colors.cyan);
+        } else {
+          throw err;
+        }
+      }
     } else {
-      log('⚠ Warning: backend/.env.example not found. Skipping backend/.env creation.', colors.yellow);
+      log('⚠ Warning: .env.example not found. Skipping .env creation.', colors.yellow);
     }
   } else {
-    log('ℹ backend/.env already exists (kept intact).', colors.cyan);
-  }
-}
-
-function setupContractEnv() {
-  const envPath = path.join(CONTRACT_DIR, '.env');
-  const examplePath = path.join(CONTRACT_DIR, '.env.example');
-
-  if (!fs.existsSync(envPath)) {
-    if (fs.existsSync(examplePath)) {
-      const content = fs.readFileSync(examplePath, 'utf8');
-      fs.writeFileSync(envPath, content, 'utf8');
-      log('✔ Created smart-contract/.env from template!', colors.green);
-    } else {
-      log('⚠ Warning: smart-contract/.env.example not found.', colors.yellow);
-    }
-  } else {
-    log('ℹ smart-contract/.env already exists (kept intact).', colors.cyan);
+    log('ℹ .env already exists (kept intact).', colors.cyan);
   }
 }
 
@@ -92,11 +85,11 @@ function printSummary() {
   log('                  🎉 SETUP COMPLETE! 🎉                   ', colors.bold + colors.green);
   log('=========================================================', colors.cyan);
   log('\nQuick checklist before running the app:', colors.bold);
-  log(' 1. Review backend/.env:');
+  log(' 1. Review .env in the project root:');
   log('    - SEPOLIA_RPC_URL (e.g. Alchemy/Infura for Sepolia testnet)');
   log('    - PINATA_JWT or PINATA_API_KEY (optional, for product image uploads to IPFS)');
   log('    - MONGO_URI (defaults to local MongoDB: mongodb://127.0.0.1:27017/peerloop)');
-  log(' 2. (Optional) Review smart-contract/.env if you want to deploy your own contract.');
+  log('    - PRIVATE_KEY (Required for contract deployment)');
   log('\nTo start both the Backend API and Frontend Marketplace together:', colors.bold);
   log('   npm run dev\n', colors.bold + colors.green);
   log('Then open: http://localhost:3000 in your browser.\n', colors.cyan);
@@ -106,8 +99,7 @@ function main() {
   printBanner();
 
   log('1. Setting up environment variables (.env)...', colors.bold);
-  setupBackendEnv();
-  setupContractEnv();
+  setupRootEnv();
 
   log('\n2. Installing Root & Backend dependencies...', colors.bold);
   runCommand('npm install', ROOT_DIR, 'Root dependencies installation');

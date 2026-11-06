@@ -8,6 +8,9 @@ module.exports = function(req, res, next) {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.authVersion !== 2 || !decoded.user || !decoded.user.id) {
+      return res.status(401).json({ msg: 'Please sign in again.' });
+    }
     req.user = decoded.user;
     next();
   } catch (err) {

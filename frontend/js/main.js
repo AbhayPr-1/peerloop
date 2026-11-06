@@ -18,38 +18,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // *** FINAL SOCKET CONNECTION HANDLERS ***
     socket.on('connect', () => {
-        console.log('DEBUG: Socket: Connected to real-time server!');
         if (document.getElementById('marketplace').classList.contains('hidden') === false) {
             fetchProducts(false); 
         }
     });
 
-    socket.on('ping', () => { console.log('DEBUG: Socket Ping Received (Connection Alive)'); });
 
     socket.on('disconnect', (reason) => {
-        console.error('DEBUG: Socket: Disconnected. Reason:', reason);
+        console.error('Socket: Disconnected. Reason:', reason);
         showMessage("Real-time connection lost. Reconnecting...", 5000);
     });
     
     socket.on('reconnect', () => {
-        console.log('DEBUG: Socket: Reconnected successfully.');
         showMessage("Real-time connection restored. Refreshing...", 3000);
         fetchProducts(true); 
     });
     
     socket.on('reconnect_error', (error) => {
-        console.error('DEBUG: Socket: Reconnect error. Forcing fresh connection.', error);
+        console.error('Socket: Reconnect error. Forcing fresh connection.', error);
         socket.close();
         setTimeout(() => socket.open(), 5000); 
     });
     
     socket.on('reconnect_failed', () => {
-        console.error('DEBUG: Socket: Reconnection failed permanently.');
+        console.error('Socket: Reconnection failed permanently.');
         showMessage("Real-time connection failed permanently. Please refresh the page.", 6000);
     });
 
     socket.on('product_updated', (data) => {
-        console.log('DEBUG: Socket Event Received: product_updated', data);
         if (socket.connected) {
             showMessage(`Real-time update: A product was ${data.type}. Refreshing...`); 
             try {
@@ -69,13 +65,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkAuthState();
   renderUI();
 
-  if (currentUser && typeof window.ethereum !== 'undefined') {
+  if (currentUser) {
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
-      const accounts = await provider.send("eth_accounts", []);
-      if (accounts && accounts.length > 0) {
-        const signer = provider.getSigner();
-        await connectContractToSigner(signer); 
+      const detected = await WalletDetection.detectWalletProvider();
+      const walletProvider = (detected && detected.provider) || window.ethereum;
+      if (!walletProvider) {
+        console.warn("No wallet provider available for auto-connect.");
+      } else {
+        const provider = new ethers.providers.Web3Provider(walletProvider, "any");
+        const accounts = await provider.send("eth_accounts", []);
+        if (accounts && accounts.length > 0) {
+          const signer = provider.getSigner();
+          await connectContractToSigner(signer);
+        }
       }
     } catch (e) {
       console.warn("Could not auto-connect signer:", e);

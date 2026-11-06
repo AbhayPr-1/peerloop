@@ -86,7 +86,7 @@ function showQuickView(product) {
     const sellerAddress = product.seller;
     const sellerDisplay = (product.seller && product.seller.name) ? product.seller.name : formatAddress(sellerAddress);
     
-    const imageUrl = product.imageUrl || 'http://via.placeholder.com/300x200.png?text=No+Image';
+    const imageUrl = safeImageUrl(product.imageUrl);
     const displayCategory = categoryDisplayMap[product.category] || product.category || 'Data';
 
     let actionButtons = "";
@@ -100,16 +100,16 @@ function showQuickView(product) {
     content.innerHTML = `
         <button id="close-quick-view-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-            <img src="${imageUrl}" alt="${product.name}" class="w-full h-auto object-cover rounded-xl">
+            <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" class="w-full h-auto object-cover rounded-xl">
             <div class="flex flex-col h-full">
-                <h3 class="text-4xl font-bold text-neon-blue mb-4">${product.name}</h3>
-                <p class="text-gray-400 mb-4 flex-grow">${product.description}</p>
+                <h3 class="text-4xl font-bold text-neon-blue mb-4">${escapeHtml(product.name)}</h3>
+                <p class="text-gray-400 mb-4 flex-grow">${escapeHtml(product.description)}</p>
                 <div class="text-sm mb-4" style="overflow-wrap: break-word;">
-                  Seller: <a href="#" class="seller-link">${sellerDisplay}</a>
+                  Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
                 </div>
                 <div class="flex items-center justify-between mb-6">
                     <span class="text-3xl text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-                    <span class="text-sm px-3 py-1 rounded bg-gray-700">${displayCategory}</span>
+                    <span class="text-sm px-3 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
                 </div>
                 <div class="grid grid-cols-2 gap-3">${actionButtons}</div>
             </div>
@@ -122,7 +122,7 @@ function showQuickView(product) {
     if (buyNowBtn) {
         buyNowBtn.addEventListener('click', (e) => {
             if (!currentUser) return showAuthModal();
-            const message = `Confirm purchase of <strong>${product.name}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>?`;
+            const message = `Confirm purchase of <strong>${escapeHtml(product.name)}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>?`;
             showConfirmationModal(message, () => buyNow(product, e.currentTarget));
         });
     }
