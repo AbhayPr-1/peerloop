@@ -3,7 +3,7 @@
 
   const LOGS_URL = `https://eth-sepolia.blockscout.com/api/v2/addresses/${marketplaceAddress}/logs`;
   const RPC_LOG_CHUNK_SIZE = 2000;
-  const PRODUCT_LOOKUP_BATCH_SIZE = 6;
+  const HISTORY_REQUEST_CONCURRENCY = 6;
   const HISTORY_INTERFACE = new ethers.utils.Interface([
     'event ProductSold(uint256 id, string name, uint256 price, address seller, address buyer)',
     'event EscrowCreated(uint256 escrowId, uint256 productId, address seller, address buyer, uint256 amount)',
@@ -20,13 +20,81 @@
     HISTORY_INTERFACE.getEventTopic('EscrowDisputed').toLowerCase()
   ]);
   const RPC_TOPICS = [[...HISTORY_TOPICS]];
+  const WALLET_HISTORY_CACHE_PREFIX = `peerloop:wallet-history:v1:${marketplaceAddress.toLowerCase()}:`;
+  const WALLET_HISTORY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
   let loadPromise = null;
   let cachedEvents = null;
   let cachedEventsUntil = 0;
   const confirmedPurchasesByHash = new Map();
   const confirmedEscrowStates = new Map();
 
-  async function loadIndexedLogs() {
+  function readWalletHistoryCache(walletAddress) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(`${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`) || 'null');
+      if (!cached || !Number.isFinite(cached.savedAt) || cached.savedAt > Date.now()
+        || Date.now() - cached.savedAt > WALLET_HISTORY_CACHE_MAX_AGE
+        || !Array.isArray(cached.history?.purchased) || !Array.isArray(cached.history?.sold)) {
+        return null;
+      }
+      return cached.history;
+    } catch (error) {
+      console.warn('Could not read cached wallet history:', error.message);
+      return null;
+    }
+  }
+
+  function saveWalletHistoryCache(walletAddress, history) {
+    try {
+      localStorage.setItem(`${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`, JSON.stringify({
+        savedAt: Date.now(),
+        history
+      }));
+    } catch (error) {
+      console.warn('Could not save wallet history cache:', error.message);
+    }
+  }
+
+  async function mapWithConcurrency(items, concurrency, callback) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex++;
+        results[index] = await callback(items[index], index);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+
+  function parsePartialSoldEvents(logs) {
+    return logs.filter((log) => Array.isArray(log.topics) && log.topics[0]?.toLowerCase() === SOLD_TOPIC)
+      .map((log) => {
+        const parsed = HISTORY_INTERFACE.parseLog({ topics: log.topics.filter(Boolean), data: log.data });
+        const args = parsed.args;
+        return {
+          _id: args.id.toString(),
+          name: String(args.name),
+          price: Number(ethers.utils.formatEther(args.price)),
+          seller: String(args.seller),
+          buyer: String(args.buyer),
+          imageUrl: '',
+          description: '',
+          category: 'data',
+          isSold: true,
+          escrowId: null,
+          escrowState: 0,
+          refunded: false,
+          transactionHash: String(log.transaction_hash || log.transactionHash || ''),
+          blockNumber: Number(log.block_number ?? log.blockNumber),
+          soldAt: log.block_timestamp
+            ? new Date(log.block_timestamp).toISOString()
+            : log.timestamp ? new Date(log.timestamp * 1000).toISOString() : null
+        };
+      });
+  }
+
+  async function loadIndexedLogs(onPage) {
     const logs = [];
     let nextUrl = LOGS_URL;
     const seenCursors = new Set();
@@ -42,9 +110,11 @@
         throw new Error('Sepolia transaction history service returned an invalid response.');
       }
 
-      for (const log of page.items) {
-        if (Array.isArray(log.topics) && HISTORY_TOPICS.has(log.topics[0]?.toLowerCase())) logs.push(log);
-      }
+      const relevantLogs = page.items.filter((log) =>
+        Array.isArray(log.topics) && HISTORY_TOPICS.has(log.topics[0]?.toLowerCase())
+      );
+      logs.push(...relevantLogs);
+      onPage?.(relevantLogs);
 
       const cursor = page.next_page_params;
       if (!cursor) {
@@ -67,24 +137,36 @@
     return logs;
   }
 
-  async function loadRpcLogs() {
+  async function loadRpcLogs(onBatch) {
     const latestBlock = await getMarketplaceBlockNumber();
-    const logs = [];
+    const ranges = [];
     for (let fromBlock = marketplaceDeploymentBlock; fromBlock <= latestBlock; fromBlock += RPC_LOG_CHUNK_SIZE) {
       const toBlock = Math.min(fromBlock + RPC_LOG_CHUNK_SIZE - 1, latestBlock);
-      logs.push(...await readMarketplaceLogs(fromBlock, toBlock, RPC_TOPICS));
+      ranges.push([fromBlock, toBlock]);
     }
-    return logs;
+    const logsByRange = await mapWithConcurrency(
+      ranges,
+      HISTORY_REQUEST_CONCURRENCY,
+      async ([fromBlock, toBlock]) => {
+        const logs = await readMarketplaceLogs(fromBlock, toBlock, RPC_TOPICS);
+        onBatch?.(logs);
+        return logs;
+      }
+    );
+    return logsByRange.flat();
   }
 
-  async function loadSoldEvents() {
+  async function loadSoldEvents(onProgress) {
+    const reportLogs = (logs) => {
+      if (onProgress && logs.length) onProgress(parsePartialSoldEvents(logs));
+    };
     let logs;
     try {
-      logs = await loadIndexedLogs();
+      logs = await loadIndexedLogs(reportLogs);
     } catch (indexerError) {
       console.warn('Sepolia history indexer is unavailable; falling back to Sepolia RPC logs.', indexerError.message);
       try {
-        logs = await loadRpcLogs();
+        logs = await loadRpcLogs(reportLogs);
       } catch (rpcError) {
         throw new Error(`Transaction history could not be loaded from the indexer or blockchain RPC. Indexer: ${indexerError.message} RPC: ${rpcError.message}`);
       }
@@ -154,11 +236,18 @@
       .sort((a, b) => b.blockNumber - a.blockNumber);
   }
 
-  async function getSoldEvents() {
-    if (cachedEvents && Date.now() < cachedEventsUntil) return cachedEvents;
-    if (loadPromise) return loadPromise;
+  async function getSoldEvents(onProgress) {
+    if (cachedEvents && Date.now() < cachedEventsUntil) {
+      onProgress?.(cachedEvents);
+      return cachedEvents;
+    }
+    if (loadPromise) {
+      const events = await loadPromise;
+      onProgress?.(events);
+      return events;
+    }
 
-    loadPromise = loadSoldEvents()
+    loadPromise = loadSoldEvents(onProgress)
       .then((events) => {
         cachedEvents = events;
         cachedEventsUntil = Date.now() + 30000;
@@ -174,31 +263,41 @@
     const uniqueEventsById = new Map();
     events.forEach((event) => uniqueEventsById.set(event._id, event));
     const uniqueEvents = [...uniqueEventsById.values()];
-    const detailsById = new Map();
-    for (let start = 0; start < uniqueEvents.length; start += PRODUCT_LOOKUP_BATCH_SIZE) {
-      const batch = uniqueEvents.slice(start, start + PRODUCT_LOOKUP_BATCH_SIZE);
-      await Promise.all(batch.map(async (event) => {
-        try {
-          const product = await readOnlyContract.products(event._id);
-          detailsById.set(event._id, {
-            description: String(product.description || ''),
-            imageUrl: String(product.imageUrl || '')
-          });
-        } catch (error) {
-          console.warn(`Could not load additional details for sold product ${event._id}:`, error.message);
-        }
-      }));
-    }
+    const detailsById = new Map<string, { description: string; imageUrl: string }>();
+    await mapWithConcurrency(uniqueEvents, HISTORY_REQUEST_CONCURRENCY, async (event) => {
+      try {
+        const product = await readOnlyContract.products(event._id);
+        detailsById.set(event._id, {
+          description: String(product.description || ''),
+          imageUrl: String(product.imageUrl || '')
+        });
+      } catch (error) {
+        console.warn(`Could not load additional details for sold product ${event._id}:`, error.message);
+      }
+    });
     return events.map((event) => ({ ...event, ...detailsById.get(event._id) }));
   }
 
-  global.getWalletTransactionHistory = async function (walletAddress) {
+  global.getWalletTransactionHistory = async function (walletAddress, onProgress) {
     if (!ethers.utils.isAddress(walletAddress)) {
       throw new Error('A valid wallet address is required to load history.');
     }
 
     const lowerAddress = walletAddress.toLowerCase();
-    const indexedEvents = await getSoldEvents();
+    const progressEvents = new Map();
+    const indexedEvents = await getSoldEvents((events) => {
+      events.forEach((event) => {
+        if (event.transactionHash) progressEvents.set(event.transactionHash.toLowerCase(), event);
+      });
+      confirmedPurchasesByHash.forEach((event, hash) => progressEvents.set(hash, event));
+      const partialEvents = [...progressEvents.values()].filter((event) =>
+        event.seller.toLowerCase() === lowerAddress || event.buyer.toLowerCase() === lowerAddress
+      );
+      onProgress?.({
+        sold: partialEvents.filter((event) => event.seller.toLowerCase() === lowerAddress),
+        purchased: partialEvents.filter((event) => event.buyer.toLowerCase() === lowerAddress)
+      });
+    });
     const eventsByHash = new Map();
     confirmedPurchasesByHash.forEach((event, hash) => eventsByHash.set(hash, event));
     indexedEvents.forEach((event) => {
@@ -209,29 +308,51 @@
       event.seller.toLowerCase() === lowerAddress
       || event.buyer.toLowerCase() === lowerAddress
     );
-    const blocksMissingTimestamps = [...new Set(matchingEvents
+    const walletHistory = {
+      sold: matchingEvents.filter((product) => product.seller.toLowerCase() === lowerAddress),
+      purchased: matchingEvents.filter((product) => product.buyer.toLowerCase() === lowerAddress)
+    };
+    saveWalletHistoryCache(lowerAddress, walletHistory);
+    return walletHistory;
+  };
+
+  global.getCachedWalletTransactionHistory = function (walletAddress) {
+    if (!ethers.utils.isAddress(walletAddress)) return null;
+    return readWalletHistoryCache(walletAddress);
+  };
+
+  global.enrichWalletTransactionHistory = async function (walletAddress, walletHistory) {
+    const lowerAddress = walletAddress.toLowerCase();
+    const eventsByHash = new Map();
+    [...walletHistory.purchased, ...walletHistory.sold].forEach((event) => {
+      eventsByHash.set(String(event.transactionHash || event._id).toLowerCase(), event);
+    });
+    const events = [...eventsByHash.values()];
+    const blocksMissingTimestamps = [...new Set(events
       .filter((event) => !event.soldAt && Number(event.blockNumber) > 0)
       .map((event) => Number(event.blockNumber)))];
-    for (let start = 0; start < blocksMissingTimestamps.length; start += PRODUCT_LOOKUP_BATCH_SIZE) {
-      const batch = blocksMissingTimestamps.slice(start, start + PRODUCT_LOOKUP_BATCH_SIZE);
-      await Promise.all(batch.map(async (blockNumber) => {
-        try {
-          const timestamp = await getMarketplaceBlockTimestamp(blockNumber);
-          const soldAt = new Date(timestamp * 1000).toISOString();
-          matchingEvents.forEach((event) => {
-            if (Number(event.blockNumber) === blockNumber && !event.soldAt) event.soldAt = soldAt;
-          });
-        } catch (error) {
-          console.warn(`Could not load timestamp for transaction block ${blockNumber}:`, error.message);
-        }
-      }));
-    }
-    const products = await addProductDetails(matchingEvents);
-
-    return {
-      sold: products.filter((product) => product.seller.toLowerCase() === lowerAddress),
-      purchased: products.filter((product) => product.buyer.toLowerCase() === lowerAddress)
+    await mapWithConcurrency(blocksMissingTimestamps, HISTORY_REQUEST_CONCURRENCY, async (blockNumber) => {
+      try {
+        const timestamp = await getMarketplaceBlockTimestamp(blockNumber);
+        const soldAt = new Date(timestamp * 1000).toISOString();
+        events.forEach((event) => {
+          if (Number(event.blockNumber) === blockNumber && !event.soldAt) event.soldAt = soldAt;
+        });
+      } catch (error) {
+        console.warn(`Could not load timestamp for transaction block ${blockNumber}:`, error.message);
+      }
+    });
+    const enrichedEvents = await addProductDetails(events);
+    const enrichedByHash = new Map(enrichedEvents.map((event) => [
+      String(event.transactionHash || event._id).toLowerCase(),
+      event
+    ]));
+    const enrichedHistory = {
+      sold: walletHistory.sold.map((event) => enrichedByHash.get(String(event.transactionHash || event._id).toLowerCase()) || event),
+      purchased: walletHistory.purchased.map((event) => enrichedByHash.get(String(event.transactionHash || event._id).toLowerCase()) || event)
     };
+    saveWalletHistoryCache(lowerAddress, enrichedHistory);
+    return enrichedHistory;
   };
 
   global.invalidateWalletTransactionHistory = function () {

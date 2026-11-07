@@ -3,6 +3,7 @@
 
   let history = null;
   let historyError = null;
+  let historyLoading = false;
   let listings = null;
   let listingsError = null;
   let listingsLoading = false;
@@ -75,7 +76,7 @@
       cell.colSpan = 7;
       cell.className = 'profile-empty';
       if (!historyError) {
-        cell.textContent = 'Loading on-chain activity…';
+        cell.textContent = 'Checking Sepolia for your activity…';
       } else {
         cell.textContent = 'Could not load transaction history. Check your connection and retry.';
         const retryButton = document.createElement('button');
@@ -101,9 +102,11 @@
     tbody.replaceChildren();
     if (!data.length) {
       const row = document.createElement('tr');
-      const emptyMessage = isSold
-        ? 'No completed sales found for this wallet.'
-        : escrowView ? 'No escrow purchases found for this wallet.' : 'No purchased items found for this wallet.';
+      const emptyMessage = historyLoading
+        ? 'Continuing to sync on-chain activity…'
+        : isSold
+          ? 'No completed sales found for this wallet.'
+          : escrowView ? 'No escrow purchases found for this wallet.' : 'No purchased items found for this wallet.';
       row.innerHTML = `<td colspan="7" class="profile-empty">${emptyMessage}</td>`;
       tbody.appendChild(row);
       return;
@@ -151,6 +154,15 @@
       row.append(imageCell, nameCell, walletCell, dateCell, priceCell, linkCell, escrowCell);
       tbody.appendChild(row);
     });
+    if (historyLoading) {
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 7;
+      cell.className = 'profile-empty';
+      cell.textContent = 'Continuing to sync on-chain activity…';
+      row.appendChild(cell);
+      tbody.appendChild(row);
+    }
   }
 
   async function renderDashboard() {
@@ -161,30 +173,40 @@
     const avatarText = name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'P';
     document.getElementById('profile-display-name').textContent = name;
     document.getElementById('profile-avatar').textContent = avatarText;
-    document.getElementById('profile-activity-rows').innerHTML = '<tr><td colspan="7" class="profile-empty">Loading on-chain activity.</td></tr>';
+    document.getElementById('profile-activity-rows').innerHTML = '<tr><td colspan="7" class="profile-empty">Checking Sepolia for your activity…</td></tr>';
     document.getElementById('profile-owned-value').textContent = '—';
     document.getElementById('profile-sold-count').textContent = '—';
     document.getElementById('profile-listings-grid').replaceChildren();
-    history = optimisticHistory;
+    history = optimisticHistory || getCachedWalletTransactionHistory(wallet);
     optimisticHistory = null;
     historyError = null;
     listings = null;
     listingsError = null;
     listingsLoading = true;
+    historyLoading = true;
     document.querySelectorAll<HTMLElement>('[data-profile-table]').forEach(button => {
       button.classList.toggle('active', button.dataset.profileTable === view);
     });
 
     const address = wallet.toLowerCase();
     if (history) {
-      const optimisticOwnedItems = history.purchased.filter(item => !item.refunded);
-      const optimisticOwnedValue = optimisticOwnedItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
-      document.getElementById('profile-owned-value').textContent = `${optimisticOwnedValue.toFixed(4)} ETH`;
+      const ownedItems = history.purchased.filter(item => !item.refunded);
+      const ownedValue = ownedItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
+      document.getElementById('profile-owned-value').textContent = `${ownedValue.toFixed(4)} ETH`;
       document.getElementById('profile-sold-count').textContent = String(history.sold.filter(item => !item.refunded).length);
       paintActivityRows();
     }
 
-    const historyPromise = getWalletTransactionHistory(wallet).then(walletHistory => {
+    const historyPromise = getWalletTransactionHistory(wallet, partialHistory => {
+      if (currentRequestId !== requestId) return;
+      history = partialHistory;
+      const ownedItems = partialHistory.purchased.filter(item => !item.refunded
+        && !partialHistory.sold.some(sold => sold._id === item._id && Number(sold.blockNumber) > Number(item.blockNumber)));
+      const ownedValue = ownedItems.reduce((total, item) => total + (Number(item.price) || 0), 0);
+      document.getElementById('profile-owned-value').textContent = `${ownedValue.toFixed(4)} ETH`;
+      document.getElementById('profile-sold-count').textContent = String(partialHistory.sold.filter(item => !item.refunded).length);
+      paintActivityRows();
+    }).then(walletHistory => {
       if (currentRequestId !== requestId) return;
       history = walletHistory;
       historyError = null;
@@ -194,6 +216,13 @@
       document.getElementById('profile-owned-value').textContent = `${ownedValue.toFixed(4)} ETH`;
       document.getElementById('profile-sold-count').textContent = String(walletHistory.sold.filter(item => !item.refunded).length);
       paintActivityRows();
+      void enrichWalletTransactionHistory(wallet, walletHistory).then(enrichedHistory => {
+        if (currentRequestId !== requestId || history !== walletHistory) return;
+        history = enrichedHistory;
+        paintActivityRows();
+      }).catch(error => {
+        console.warn('Could not enrich profile transaction history:', error);
+      });
     });
     const listingPromise = loadProductsFromChain().then(products => {
       if (currentRequestId !== requestId) return;
@@ -201,6 +230,8 @@
     });
     const [historyResult, listingResult] = await Promise.allSettled([historyPromise, listingPromise]);
     if (currentRequestId !== requestId) return;
+    historyLoading = false;
+    if (history) paintActivityRows();
     const historyOk = historyResult.status === 'fulfilled';
     const listingOk = listingResult.status === 'fulfilled';
     if (!historyOk && !history) {
@@ -386,6 +417,10 @@
   async function renderEscrowStatus(productId, container, confirmedState = null, historyRecord = null) {
     if (!container) return;
     container.replaceChildren();
+    if (historyLoading && historyRecord && !historyRecord.escrowId) {
+      container.textContent = 'Checking escrow status…';
+      return;
+    }
 
     try {
       await readOnlyProviderReady;

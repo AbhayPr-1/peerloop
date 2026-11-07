@@ -15,7 +15,15 @@ interface Window {
     updateListings(products: any[]): void;
     removeListing(productId: string): void;
   };
-  getWalletTransactionHistory(walletAddress: string): Promise<{ purchased: any[]; sold: any[] }>;
+  getWalletTransactionHistory(
+    walletAddress: string,
+    onProgress?: (history: { purchased: any[]; sold: any[] }) => void
+  ): Promise<{ purchased: any[]; sold: any[] }>;
+  getCachedWalletTransactionHistory(walletAddress: string): { purchased: any[]; sold: any[] } | null;
+  enrichWalletTransactionHistory(
+    walletAddress: string,
+    history: { purchased: any[]; sold: any[] }
+  ): Promise<{ purchased: any[]; sold: any[] }>;
   invalidateWalletTransactionHistory(): void;
   recordConfirmedEscrowPurchase(purchase: any): any;
   updateConfirmedEscrowState(productId: string, escrowId: string, state: number): void;
@@ -48,6 +56,8 @@ declare const ethers: any;
 declare const io: any;
 declare const WalletDetection: Window['WalletDetection'];
 declare const getWalletTransactionHistory: Window['getWalletTransactionHistory'];
+declare const getCachedWalletTransactionHistory: Window['getCachedWalletTransactionHistory'];
+declare const enrichWalletTransactionHistory: Window['enrichWalletTransactionHistory'];
 declare const invalidateWalletTransactionHistory: Window['invalidateWalletTransactionHistory'];
 declare const recordConfirmedEscrowPurchase: Window['recordConfirmedEscrowPurchase'];
 declare const updateConfirmedEscrowState: Window['updateConfirmedEscrowState'];
