@@ -4,7 +4,7 @@
   "description": "Backend server for the PeerLoop application",
   "main": "dist/backend/server.js",
   "scripts": {
-    "setup": "npm install && npm run build && node dist/scripts/setup.js",
+    "setup": "npm install && npm run build:server && node dist/scripts/setup.js && npm run build",
     "build": "npm run build:server && npm run build:frontend && tsc -p smart-contract/tsconfig.json",
     "build:server": "tsc -p tsconfig.json",
     "test": "npm run build:server && node --test dist/tests/backend/config.test.js dist/tests/backend/modules/auth/auth.test.js dist/tests/backend/modules/listing-metadata/listingMetadata.test.js dist/tests/backend/modules/public-config/publicConfig.test.js dist/tests/backend/modules/uploads/uploads.test.js",
