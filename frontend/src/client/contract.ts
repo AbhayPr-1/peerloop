@@ -110,6 +110,37 @@ const marketplaceABI = [
       "type": "event"
     },
     {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "escrowId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "productId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "EscrowRefunded",
+      "type": "event"
+    },
+    {
       "inputs": [
         {
           "internalType": "uint256",
@@ -400,6 +431,7 @@ async function initializeReadOnlyProvider() {
     readOnlyRpcUrls = [...new Set([...FALLBACK_RPC_URLS, ...rpcUrls])];
     for (const rpcUrl of readOnlyRpcUrls) {
       const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      provider.pollingInterval = 2000;
       try {
         const network = await withTimeout(
             provider.getNetwork(),

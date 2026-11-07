@@ -385,7 +385,7 @@
     return confirmedPurchase;
   };
 
-  global.updateConfirmedEscrowState = function (productId, escrowId, state) {
+  global.updateConfirmedEscrowState = function (productId, escrowId, state, walletAddress = '') {
     const normalizedEscrowId = String(escrowId);
     confirmedEscrowStates.set(normalizedEscrowId, Number(state));
     confirmedPurchasesByHash.forEach((event) => {
@@ -393,6 +393,17 @@
       event.escrowState = Number(state);
       event.refunded = Number(state) === 3;
     });
+    if (walletAddress && ethers.utils.isAddress(walletAddress)) {
+      const cachedHistory = readWalletHistoryCache(walletAddress);
+      if (cachedHistory) {
+        for (const event of [...cachedHistory.purchased, ...cachedHistory.sold]) {
+          if (event._id !== String(productId) || String(event.escrowId) !== normalizedEscrowId) continue;
+          event.escrowState = Number(state);
+          event.refunded = Number(state) === 3;
+        }
+        saveWalletHistoryCache(walletAddress, cachedHistory);
+      }
+    }
     invalidateWalletTransactionHistory();
   };
 })(window);

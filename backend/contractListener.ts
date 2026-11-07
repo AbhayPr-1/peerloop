@@ -56,6 +56,17 @@ const MARKETPLACE_ABI = [
     "name": "ProductSold",
     "type": "event"
   },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "escrowId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "productId", "type": "uint256" },
+      { "indexed": false, "internalType": "address", "name": "buyer", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "EscrowRefunded",
+    "type": "event"
+  },
   /* rest of ABI omitted for brevity in display — you already have functions if needed */
 ];
 
@@ -155,19 +166,20 @@ function startContractListener(io, opts: ListenerOptions = {}) {
           }
 
           // extract id/name safely
-          let id = null, name = null;
+          let id = null, name = null, escrowId = null;
           try {
             if (ev.args) {
               const eventId = ev.args.id ?? ev.args.productId;
               id = eventId == null ? null : eventId.toString();
               name = ev.args.name ?? null;
+              escrowId = ev.args.escrowId == null ? null : ev.args.escrowId.toString();
             }
           } catch (e) {
             console.warn('Error reading ev.args', e);
           }
 
           console.log(`[POLL EVENT] ${type} tx=${tx} logIndex=${logIndex} id=${id} name=${name}`);
-          io.emit('product_updated', { type, id, name, tx, logIndex });
+          io.emit('product_updated', { type, id, name, escrowId, tx, logIndex });
         }
       };
 
@@ -179,14 +191,16 @@ function startContractListener(io, opts: ListenerOptions = {}) {
         const listed = await contract.queryFilter('ProductListed', chunkStart, chunkEnd);
         const sold = await contract.queryFilter('ProductSold', chunkStart, chunkEnd);
         const deleted = await contract.queryFilter('ProductDeleted', chunkStart, chunkEnd);
+        const refunded = await contract.queryFilter('EscrowRefunded', chunkStart, chunkEnd);
 
-        if (listed.length || sold.length || deleted.length) {
-          console.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length}`);
+        if (listed.length || sold.length || deleted.length || refunded.length) {
+          console.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length} refunded:${refunded.length}`);
         }
 
         processEvents(listed, 'listed');
         processEvents(sold, 'sold');
         processEvents(deleted, 'deleted');
+        processEvents(refunded, 'refunded');
       }
 
       lastChecked = latest;

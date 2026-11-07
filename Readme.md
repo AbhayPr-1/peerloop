@@ -10,6 +10,7 @@ PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. 
 - Marketplace reads race validated Sepolia RPC endpoints so a slow or unavailable endpoint does not block Explore.
 - An Ethers.js listener watches contract events and sends updates to the frontend through Socket.IO.
 - The backend, startup tools, and browser application are written in TypeScript. React mounts the browser UI from a TypeScript-generated document; existing marketplace behaviors are initialized after the React render. Cart data is stored in the browser.
+- Tailwind utility styles are compiled locally as part of the frontend build; the browser does not load Tailwind from a CDN.
 - The account dashboard is isolated in its own frontend module; profile activity dates come from the corresponding Sepolia block timestamp.
 
 ## Requirements

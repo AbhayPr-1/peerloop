@@ -1,13 +1,25 @@
-function SelectDropdown({ id, label, options }: { id: string; label: string; options: Array<{ value: string; text: string }> }) {
+function SelectDropdown({ id, label, options, labelId }: {
+  id: string;
+  label: string;
+  options: Array<{ value: string; text: string }>;
+  labelId?: string;
+}) {
   return (
     <div id={id} className="relative w-full">
-      <button type="button" className="custom-select-btn w-full flex justify-between items-center">
-        <span>{label}</span>
+      <button
+        type="button"
+        className="custom-select-btn w-full flex justify-between items-center"
+        aria-label={labelId ? undefined : `Sort listings: ${label}`}
+        aria-labelledby={labelId ? `${labelId} ${id}-value` : undefined}
+        aria-controls={`${id}-options`}
+        aria-expanded="false"
+      >
+        <span id={`${id}-value`}>{label}</span>
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
         </svg>
       </button>
-      <div className="dropdown-menu w-full hidden">
+      <div id={`${id}-options`} className="dropdown-menu w-full hidden">
         {options.map(({ value, text }) => <a key={value} href="#" data-value={value}>{text}</a>)}
       </div>
     </div>
@@ -42,8 +54,8 @@ export function Marketplace() {
             <label className="sidebar-label" htmlFor="search-input">Search</label>
             <input type="search" id="search-input" placeholder="Search gears..." className="w-full p-3 rounded-xl auth-input" />
             <div className="sidebar-control">
-              <label className="sidebar-label" htmlFor="category-filter">Categories</label>
-              <SelectDropdown id="category-filter" label="All Categories" options={categories} />
+              <span className="sidebar-label" id="category-filter-label">Categories</span>
+              <SelectDropdown id="category-filter" labelId="category-filter-label" label="All Categories" options={categories} />
             </div>
             <div className="sidebar-control">
               <span className="sidebar-label">Blockchain</span>

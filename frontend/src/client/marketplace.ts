@@ -89,6 +89,32 @@ function removeProductFromMarketplace(productId) {
     filterAndSortProducts();
 }
 
+function markProductAvailable(productId, historyRecord = null) {
+    const id = String(productId);
+    realtimeRemovedProductIds.delete(id);
+    let product = allProducts.find(item => String(item._id) === id);
+    if (product) {
+        product.isSold = false;
+        product.buyer = '';
+    } else if (historyRecord) {
+        product = {
+            _id: id,
+            name: historyRecord.name || 'Marketplace item',
+            description: historyRecord.description || '',
+            price: Number(historyRecord.price) || 0,
+            seller: String(historyRecord.seller || ''),
+            imageUrl: historyRecord.imageUrl || '',
+            category: historyRecord.category || 'data',
+            isSold: false
+        };
+        allProducts.push(product);
+    }
+    if (currentUser && window.PeerLoopAccount) {
+        window.PeerLoopAccount.updateListings(allProducts);
+    }
+    filterAndSortProducts();
+}
+
 async function loadProductsFromChain() {
     const productsFromChain = await readMarketplaceProducts();
     let categories = {};
@@ -124,10 +150,10 @@ async function loadProductsFromChain() {
         }));
 }
 
-async function fetchProducts(waitForSync = false, retryCount = 0) {
+async function fetchProducts(waitForSync = false, retryCount = 0, showLoading = !waitForSync) {
     const grid = document.getElementById("product-grid");
     const refreshVersion = ++productRefreshVersion;
-    if (!waitForSync) {
+    if (showLoading) {
         const loadingMessage = document.createElement('p');
         loadingMessage.className = 'text-center text-gray-500 col-span-full';
         loadingMessage.textContent = 'Loading Explore Gears...';
@@ -158,7 +184,7 @@ async function fetchProducts(waitForSync = false, retryCount = 0) {
             setTimeout(() => {
                 if (refreshVersion === productRefreshVersion
                     && !document.getElementById('marketplace').classList.contains('hidden')) {
-                    fetchProducts(false, retryCount + 1);
+                    fetchProducts(false, retryCount + 1, showLoading);
                 }
             }, 1000 * (retryCount + 1));
             return;

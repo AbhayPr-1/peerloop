@@ -26,7 +26,7 @@ interface Window {
   ): Promise<{ purchased: any[]; sold: any[] }>;
   invalidateWalletTransactionHistory(): void;
   recordConfirmedEscrowPurchase(purchase: any): any;
-  updateConfirmedEscrowState(productId: string, escrowId: string, state: number): void;
+  updateConfirmedEscrowState(productId: string, escrowId: string, state: number, walletAddress?: string): void;
 }
 
 interface HTMLElementTagNameMap {

@@ -1,5 +1,8 @@
 // frontend/js/main.js
 
+const processedRefundUpdates = new Set<string>();
+const processedSaleUpdates = new Set<string>();
+
 document.addEventListener('DOMContentLoaded', async () => {
   readOnlyProviderReady = initializeReadOnlyProvider();
     
@@ -50,15 +53,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     socket.on('product_updated', (data) => {
-        if (!data || !['listed', 'sold', 'deleted'].includes(data.type)) return;
+        if (!data || !['listed', 'sold', 'deleted', 'refunded'].includes(data.type)) return;
         console.info(`Socket: Received ${data.type} update for product ${data.id ?? 'unknown'}.`);
-        if (data.type === 'sold' || data.type === 'deleted') {
+        if (data.type === 'sold' && data.id != null) {
+            applyProductSoldUpdate(String(data.id), data.name, data.tx);
+        } else if (data.type === 'deleted') {
             if (data.id != null) {
                 removeProductFromMarketplace(data.id);
             }
             handleRealTimeCartRemoval(data.id, data.name);
+        } else if (data.type === 'refunded' && data.id != null && data.escrowId != null) {
+            applyRefundUpdate(String(data.id), String(data.escrowId));
         }
-        if (socket.connected) fetchProducts(true);
+        if (socket.connected && data.type !== 'refunded') fetchProducts(true);
     });
   } else {
     console.warn("Socket.IO client library not found. Real-time updates disabled.");
@@ -76,6 +83,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeCustomSelect('sort-by', filterAndSortProducts);
 
   await readOnlyProviderReady;
+
+  if (readOnlyContract) {
+    try {
+      readOnlyContract.on('ProductSold', (productId, name, _price, _seller, _buyer, event) => {
+        applyProductSoldUpdate(String(productId), String(name), event?.transactionHash);
+      });
+      readOnlyContract.on('EscrowRefunded', (escrowId, productId) => {
+        applyRefundUpdate(String(productId), String(escrowId));
+      });
+    } catch (error) {
+      console.error('Could not subscribe to on-chain marketplace events:', error);
+    }
+  }
 
   if (currentUser) {
     try {
@@ -96,6 +116,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 });
+
+function applyProductSoldUpdate(productId, name = '', transactionHash = '') {
+  const updateId = transactionHash ? transactionHash.toLowerCase() : '';
+  if (updateId && processedSaleUpdates.has(updateId)) return;
+  if (updateId) processedSaleUpdates.add(updateId);
+
+  removeProductFromMarketplace(productId);
+  window.PeerLoopAccount?.removeListing(productId);
+  handleRealTimeCartRemoval(productId, name);
+  fetchProducts(false, 0, false);
+}
+
+function applyRefundUpdate(productId, escrowId) {
+  const updateId = `${productId}:${escrowId}`;
+  if (processedRefundUpdates.has(updateId)) return;
+  processedRefundUpdates.add(updateId);
+  updateConfirmedEscrowState(
+    productId,
+    escrowId,
+    3,
+    currentUser?.walletAddress || ''
+  );
+  window.PeerLoopAccount?.refreshEscrowState(productId, escrowId, 3);
+  fetchProducts(false, 0, false);
+}
 
 function initializeModalListeners() {
     const confirmBtn = document.getElementById('confirm-action-btn');

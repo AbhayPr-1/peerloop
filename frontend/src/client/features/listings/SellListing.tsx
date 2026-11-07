@@ -18,15 +18,21 @@ export function SellListing() {
               <input type="number" id="product-price" placeholder="0.0001" step="0.0001" min="0" required className="w-full p-3 rounded-xl auth-input" />
             </div>
             <div>
-              <label htmlFor="product-category" className="block text-xl font-medium mb-2 text-neon-blue">Category</label>
+              <span id="product-category-label" className="block text-xl font-medium mb-2 text-neon-blue">Category</span>
               <div id="product-category" className="relative w-full">
-                <button type="button" className="custom-select-btn w-full flex justify-between items-center">
-                  <span>Electronics</span>
+                <button
+                  type="button"
+                  className="custom-select-btn w-full flex justify-between items-center"
+                  aria-labelledby="product-category-label product-category-value"
+                  aria-controls="product-category-options"
+                  aria-expanded="false"
+                >
+                  <span id="product-category-value">Electronics</span>
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                <div className="dropdown-menu w-full hidden">
+                <div id="product-category-options" className="dropdown-menu w-full hidden">
                   <a href="#" data-value="electronics">Electronics</a>
                   <a href="#" data-value="wearables">Wearables</a>
                   <a href="#" data-value="cybernetics">Cybernetics</a>
@@ -37,7 +43,7 @@ export function SellListing() {
               </div>
             </div>
             <div>
-              <label className="block text-xl font-medium mb-2 text-neon-blue">Product Images</label>
+              <p className="block text-xl font-medium mb-2 text-neon-blue">Product Images</p>
               <div id="image-uploader" className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
                 <div className="space-y-1 text-center">
                   <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">

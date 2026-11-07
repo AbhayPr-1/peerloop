@@ -94,7 +94,7 @@
     const isSold = view === 'sold';
     const escrowView = isEscrowView();
     const data = isSold
-      ? history.sold
+      ? history.sold.filter(item => !item.refunded)
       : escrowView
         ? history.purchased.filter(item => item.escrowId)
         : history.purchased.filter(item => !item.refunded
@@ -502,11 +502,13 @@
       await tx.wait();
       invalidateWalletTransactionHistory();
       const confirmedState = method === 'releaseEscrow' ? 2 : 3;
-      updateConfirmedEscrowState(productId, escrowId, confirmedState);
+      updateConfirmedEscrowState(productId, escrowId, confirmedState, currentUser?.walletAddress || '');
       refreshEscrowState(productId, escrowId, confirmedState);
       if (method === 'refundEscrow') {
-        realtimeRemovedProductIds.delete(String(productId));
-        await fetchProducts(false);
+        const refundedProduct = [...(history?.purchased || []), ...(history?.sold || [])]
+          .find(item => item._id === String(productId) && String(item.escrowId) === String(escrowId));
+        markProductAvailable(productId, refundedProduct);
+        await fetchProducts(false, 0, false);
       }
       showMessage(method === 'releaseEscrow'
         ? 'Payment released to the seller.'

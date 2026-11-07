@@ -18,6 +18,7 @@ function initializeCustomSelect(containerId, onChangeCallback = null) {
         });
         const opening = optionsContainer.classList.contains('hidden');
         optionsContainer.classList.toggle('hidden', !opening);
+        button.setAttribute('aria-expanded', String(opening));
         if (opening) {
             const buttonBounds = button.getBoundingClientRect();
             const availableBelow = window.innerHeight - buttonBounds.bottom - 12;
@@ -35,6 +36,7 @@ function initializeCustomSelect(containerId, onChangeCallback = null) {
             displaySpan.textContent = option.textContent;
             optionsContainer.classList.add('hidden');
             optionsContainer.classList.remove('open-up');
+            button.setAttribute('aria-expanded', 'false');
             if (hiddenInput.value !== 'all' && containerId === 'category-filter') {
                 button.classList.add('active-filter');
             } else {
@@ -48,5 +50,6 @@ document.addEventListener('click', () => {
     document.querySelectorAll('.dropdown-menu').forEach(menu => {
         menu.classList.add('hidden');
         menu.classList.remove('open-up');
+        menu.closest('.relative')?.querySelector('.custom-select-btn')?.setAttribute('aria-expanded', 'false');
     });
 });
