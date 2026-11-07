@@ -1,5 +1,7 @@
 import { defineConfig } from "hardhat/config";
-import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatEthersChaiMatchers from "@nomicfoundation/hardhat-ethers-chai-matchers";
+import hardhatMocha from "@nomicfoundation/hardhat-mocha";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
@@ -12,7 +14,7 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const hasValidPrivateKey = /^0x[0-9a-fA-F]{64}$/.test(PRIVATE_KEY ?? "");
 
 export default defineConfig({
-  plugins: [hardhatToolboxMochaEthers],
+  plugins: [hardhatEthers, hardhatEthersChaiMatchers, hardhatMocha],
   solidity: "0.8.9",
   networks: {
     localhost: {

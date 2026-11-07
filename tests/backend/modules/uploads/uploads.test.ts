@@ -6,6 +6,7 @@ import {
   createUploadService,
   isValidImage
 } from '../../../../backend/modules/uploads';
+import { createPinataStorage } from '../../../../backend/modules/uploads/pinataStorage';
 
 test('upload module validates image signatures and preserves the authenticated upload contract', async () => {
   assert.equal(isValidImage(Buffer.from([0xff, 0xd8, 0xff]), 'image/jpeg'), true);
@@ -95,4 +96,84 @@ test('upload service reports unavailable storage explicitly', async () => {
     ),
     (error: Error & { statusCode?: number }) => error.statusCode === 503
   );
+});
+
+test('Pinata storage uploads files with the existing API-key credentials and metadata', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.PINATA_API_KEY;
+  const originalApiSecret = process.env.PINATA_API_SECRET;
+  const originalJwt = process.env.PINATA_JWT;
+  process.env.PINATA_API_KEY = 'test-api-key';
+  process.env.PINATA_API_SECRET = 'test-api-secret';
+  delete process.env.PINATA_JWT;
+
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, 'https://api.pinata.cloud/pinning/pinFileToIPFS');
+    assert.equal(init?.method, 'POST');
+    const headers = new Headers(init?.headers);
+    assert.equal(headers.get('pinata_api_key'), 'test-api-key');
+    assert.equal(headers.get('pinata_secret_api_key'), 'test-api-secret');
+
+    const body = init?.body;
+    assert.ok(body instanceof FormData);
+    assert.equal(body.get('pinataMetadata'), JSON.stringify({ name: 'listing.png' }));
+    const file = body.get('file');
+    assert.ok(file instanceof Blob);
+    assert.equal((file as File).name, 'listing.png');
+    assert.deepEqual(
+      new Uint8Array(await file.arrayBuffer()),
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+    );
+    return Response.json({ IpfsHash: 'bafy-pinata-test' });
+  };
+
+  try {
+    const storage = createPinataStorage();
+    assert.ok(storage);
+    assert.equal(
+      await storage.pinImage(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'listing.png'),
+      'bafy-pinata-test'
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.PINATA_API_KEY;
+    else process.env.PINATA_API_KEY = originalApiKey;
+    if (originalApiSecret === undefined) delete process.env.PINATA_API_SECRET;
+    else process.env.PINATA_API_SECRET = originalApiSecret;
+    if (originalJwt === undefined) delete process.env.PINATA_JWT;
+    else process.env.PINATA_JWT = originalJwt;
+  }
+});
+
+test('Pinata storage continues to support JWT credentials', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.PINATA_API_KEY;
+  const originalApiSecret = process.env.PINATA_API_SECRET;
+  const originalJwt = process.env.PINATA_JWT;
+  delete process.env.PINATA_API_KEY;
+  delete process.env.PINATA_API_SECRET;
+  process.env.PINATA_JWT = 'test-jwt';
+
+  globalThis.fetch = async (_input, init) => {
+    const headers = new Headers(init?.headers);
+    assert.equal(headers.get('authorization'), 'Bearer test-jwt');
+    return Response.json({ IpfsHash: 'bafy-jwt-test' });
+  };
+
+  try {
+    const storage = createPinataStorage();
+    assert.ok(storage);
+    assert.equal(
+      await storage.pinImage(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'listing.png'),
+      'bafy-jwt-test'
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.PINATA_API_KEY;
+    else process.env.PINATA_API_KEY = originalApiKey;
+    if (originalApiSecret === undefined) delete process.env.PINATA_API_SECRET;
+    else process.env.PINATA_API_SECRET = originalApiSecret;
+    if (originalJwt === undefined) delete process.env.PINATA_JWT;
+    else process.env.PINATA_JWT = originalJwt;
+  }
 });
