@@ -10,6 +10,7 @@ PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. 
 - Marketplace reads race validated Sepolia RPC endpoints so a slow or unavailable endpoint does not block Explore.
 - An Ethers.js listener watches contract events and sends updates to the frontend through Socket.IO.
 - The backend, startup tools, and browser application are written in TypeScript. React mounts the browser UI from a TypeScript-generated document; existing marketplace behaviors are initialized after the React render. Cart data is stored in the browser.
+- The account dashboard is isolated in its own frontend module; profile activity dates come from the corresponding Sepolia block timestamp.
 
 ## Requirements
 
@@ -154,6 +155,6 @@ The contract does not store product categories. The backend persists the selecte
 
 ## Notes
 
-The contract listener currently polls for live updates. History is read from the deployed contract's sale events and cached for the current page session; it does not require a contract redeployment. The frontend waits briefly before refreshing product data after transactions or events to reduce timing issues while the chain updates. The backend uses `SEPOLIA_RPC_URL` for its listener; the browser uses the public Sepolia RPC endpoint instead of receiving a credential-bearing URL.
+The contract listener currently polls for live updates. Profile history uses Blockscout's indexed logs, with a direct Sepolia RPC fallback if the indexer is unavailable. The frontend caches loaded history for the current page session. When deploying a new marketplace contract, update both `marketplaceAddress` and `marketplaceDeploymentBlock` in `frontend/src/client/contract.ts`; the deployment block bounds the RPC history fallback. The frontend waits briefly before refreshing product data after transactions or events to reduce timing issues while the chain updates. The backend uses `SEPOLIA_RPC_URL` for its listener; the browser uses public Sepolia RPC endpoints instead of receiving a credential-bearing URL.
 
 Possible future work includes storing categories on-chain, adding a formal dispute-resolution process, supporting additional storage providers, and deploying to a layer-2 network.

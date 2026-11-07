@@ -1,9 +1,8 @@
-// Sepolia RPC providers can limit eth_getLogs to a small block range.
-// Blockscout's indexed address-log API provides complete, cursor-paginated history.
 (function (global) {
   'use strict';
 
   const LOGS_URL = `https://eth-sepolia.blockscout.com/api/v2/addresses/${marketplaceAddress}/logs`;
+  const RPC_LOG_CHUNK_SIZE = 2000;
   const PRODUCT_LOOKUP_BATCH_SIZE = 6;
   const HISTORY_INTERFACE = new ethers.utils.Interface([
     'event ProductSold(uint256 id, string name, uint256 price, address seller, address buyer)',
@@ -20,13 +19,14 @@
     HISTORY_INTERFACE.getEventTopic('EscrowRefunded').toLowerCase(),
     HISTORY_INTERFACE.getEventTopic('EscrowDisputed').toLowerCase()
   ]);
+  const RPC_TOPICS = [[...HISTORY_TOPICS]];
   let loadPromise = null;
   let cachedEvents = null;
   let cachedEventsUntil = 0;
   const confirmedPurchasesByHash = new Map();
   const confirmedEscrowStates = new Map();
 
-  async function loadSoldEvents() {
+  async function loadIndexedLogs() {
     const logs = [];
     let nextUrl = LOGS_URL;
     const seenCursors = new Set();
@@ -64,10 +64,38 @@
       }
       nextUrl = url.toString();
     }
+    return logs;
+  }
 
+  async function loadRpcLogs() {
+    const latestBlock = await getMarketplaceBlockNumber();
+    const logs = [];
+    for (let fromBlock = marketplaceDeploymentBlock; fromBlock <= latestBlock; fromBlock += RPC_LOG_CHUNK_SIZE) {
+      const toBlock = Math.min(fromBlock + RPC_LOG_CHUNK_SIZE - 1, latestBlock);
+      logs.push(...await readMarketplaceLogs(fromBlock, toBlock, RPC_TOPICS));
+    }
+    return logs;
+  }
+
+  async function loadSoldEvents() {
+    let logs;
+    try {
+      logs = await loadIndexedLogs();
+    } catch (indexerError) {
+      console.warn('Sepolia history indexer is unavailable; falling back to Sepolia RPC logs.', indexerError.message);
+      try {
+        logs = await loadRpcLogs();
+      } catch (rpcError) {
+        throw new Error(`Transaction history could not be loaded from the indexer or blockchain RPC. Indexer: ${indexerError.message} RPC: ${rpcError.message}`);
+      }
+    }
+
+    logs = logs.filter((log) => Array.isArray(log.topics)
+      && HISTORY_TOPICS.has(log.topics[0]?.toLowerCase()));
     logs.sort((left, right) =>
-      Number(left.block_number) - Number(right.block_number)
-      || Number(left.index ?? left.log_index ?? 0) - Number(right.index ?? right.log_index ?? 0)
+      Number(left.block_number ?? left.blockNumber) - Number(right.block_number ?? right.blockNumber)
+      || Number(left.index ?? left.log_index ?? left.logIndex ?? 0)
+        - Number(right.index ?? right.log_index ?? right.logIndex ?? 0)
     );
     const escrowIdByTransaction = new Map();
     const escrowStateById = new Map();
@@ -78,7 +106,7 @@
         data: log.data
       });
       const args = parsed.args;
-      const transactionHash = String(log.transaction_hash || '');
+      const transactionHash = String(log.transaction_hash || log.transactionHash || '');
 
       if (parsed.name === 'EscrowCreated') {
         const escrowId = args.escrowId.toString();
@@ -105,8 +133,10 @@
           escrowId,
           escrowState: escrowId ? null : 0,
           transactionHash,
-          blockNumber: Number(log.block_number),
-          soldAt: log.block_timestamp ? new Date(log.block_timestamp).toISOString() : null
+          blockNumber: Number(log.block_number ?? log.blockNumber),
+          soldAt: log.block_timestamp
+            ? new Date(log.block_timestamp).toISOString()
+            : log.timestamp ? new Date(log.timestamp * 1000).toISOString() : null
         });
       }
     }
@@ -179,6 +209,23 @@
       event.seller.toLowerCase() === lowerAddress
       || event.buyer.toLowerCase() === lowerAddress
     );
+    const blocksMissingTimestamps = [...new Set(matchingEvents
+      .filter((event) => !event.soldAt && Number(event.blockNumber) > 0)
+      .map((event) => Number(event.blockNumber)))];
+    for (let start = 0; start < blocksMissingTimestamps.length; start += PRODUCT_LOOKUP_BATCH_SIZE) {
+      const batch = blocksMissingTimestamps.slice(start, start + PRODUCT_LOOKUP_BATCH_SIZE);
+      await Promise.all(batch.map(async (blockNumber) => {
+        try {
+          const timestamp = await getMarketplaceBlockTimestamp(blockNumber);
+          const soldAt = new Date(timestamp * 1000).toISOString();
+          matchingEvents.forEach((event) => {
+            if (Number(event.blockNumber) === blockNumber && !event.soldAt) event.soldAt = soldAt;
+          });
+        } catch (error) {
+          console.warn(`Could not load timestamp for transaction block ${blockNumber}:`, error.message);
+        }
+      }));
+    }
     const products = await addProductDetails(matchingEvents);
 
     return {
@@ -211,7 +258,7 @@
       refunded: false,
       transactionHash: String(purchase.transactionHash),
       blockNumber: Number(purchase.blockNumber) || 0,
-      soldAt: new Date().toISOString()
+      soldAt: purchase.soldAt ? new Date(purchase.soldAt).toISOString() : null
     };
     confirmedPurchasesByHash.set(transactionHash, confirmedPurchase);
     return confirmedPurchase;

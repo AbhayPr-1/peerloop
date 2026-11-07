@@ -51,7 +51,9 @@ function showSection(sectionId) {
   if (sectionId === 'marketplace') {
       fetchProducts(false);
   }
-  if (sectionId === 'user-profile-tab') renderUserProfileDashboard();
+  if (sectionId === 'user-profile-tab' && window.PeerLoopAccount) {
+    window.PeerLoopAccount.renderDashboard();
+  }
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }

@@ -31,6 +31,7 @@ export const documentHtml = String.raw`<!DOCTYPE html>
   <script src="/dist/js/animations.js"></script>
   <script src="/dist/js/ui.js"></script>
   <script src="/dist/js/auth.js"></script>
+  <script src="/dist/js/accountDashboard.js"></script>
   <script src="/dist/js/marketplace.js"></script>
   <script src="/dist/js/cart.js"></script>
   <script src="/dist/js/custom-select.js"></script>

@@ -1,6 +1,7 @@
 // frontend/js/contract.js
 
 const marketplaceAddress = "0x2F9dd22a3431Dcad05dd9E9fb6b2927e8ed905F5";
+const marketplaceDeploymentBlock = 12082533;
 
 // *** PASTE YOUR NEW ABI (from Marketplace.json) HERE ***
 const marketplaceABI = [
@@ -474,6 +475,72 @@ async function readMarketplaceProducts() {
                 ? `Marketplace RPCs are temporarily unavailable. ${details}`
                 : 'Marketplace RPCs are temporarily unavailable. Please try again.'
         );
+    }
+}
+
+async function getMarketplaceBlockNumber() {
+    await readOnlyProviderReady;
+    const rpcUrls = readOnlyRpcUrls.length ? readOnlyRpcUrls : FALLBACK_RPC_URLS;
+    try {
+        return await Promise.any(rpcUrls.map(async (rpcUrl) => {
+            const provider = getReadOnlyContract(rpcUrl).provider;
+            return withReadTimeout(provider.getBlockNumber(), rpcUrl);
+        }));
+    } catch (error) {
+        const details = (error.errors || [])
+            .map((failure) => failure.message)
+            .filter(Boolean)
+            .join('; ');
+        throw new Error(details
+            ? `Could not determine the latest Sepolia block. ${details}`
+            : 'Could not determine the latest Sepolia block.');
+    }
+}
+
+async function getMarketplaceBlockTimestamp(blockNumber) {
+    await readOnlyProviderReady;
+    const rpcUrls = readOnlyRpcUrls.length ? readOnlyRpcUrls : FALLBACK_RPC_URLS;
+    try {
+        return await Promise.any(rpcUrls.map(async (rpcUrl) => {
+            const provider = getReadOnlyContract(rpcUrl).provider;
+            const block = await withReadTimeout(provider.getBlock(Number(blockNumber)), rpcUrl);
+            if (!block || !Number.isFinite(Number(block.timestamp))) {
+                throw new Error(`Block ${blockNumber} did not include a valid timestamp.`);
+            }
+            return Number(block.timestamp);
+        }));
+    } catch (error) {
+        const details = (error.errors || [])
+            .map((failure) => failure.message)
+            .filter(Boolean)
+            .join('; ');
+        throw new Error(details
+            ? `Could not read the timestamp for block ${blockNumber}. ${details}`
+            : `Could not read the timestamp for block ${blockNumber}.`);
+    }
+}
+
+async function readMarketplaceLogs(fromBlock, toBlock, topics) {
+    await readOnlyProviderReady;
+    const rpcUrls = readOnlyRpcUrls.length ? readOnlyRpcUrls : FALLBACK_RPC_URLS;
+    try {
+        return await Promise.any(rpcUrls.map(async (rpcUrl) => {
+            const provider = getReadOnlyContract(rpcUrl).provider;
+            return withReadTimeout(provider.getLogs({
+                address: marketplaceAddress,
+                fromBlock,
+                toBlock,
+                topics
+            }), rpcUrl);
+        }));
+    } catch (error) {
+        const details = (error.errors || [])
+            .map((failure) => failure.message)
+            .filter(Boolean)
+            .join('; ');
+        throw new Error(details
+            ? `Marketplace transaction history RPCs are temporarily unavailable. ${details}`
+            : 'Marketplace transaction history RPCs are temporarily unavailable.');
     }
 }
 

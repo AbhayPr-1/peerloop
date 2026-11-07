@@ -869,14 +869,16 @@ html[data-theme='dark'] .pl-button-dark:hover {
 }
 
 .pl-button-ivory {
-  border-color: var(--pl-paper);
-  background: var(--pl-paper);
-  color: var(--pl-ink);
+  border-color: #f0eee7;
+  background: #f0eee7;
+  color: #20211d !important;
 }
 
-.pl-button-ivory:hover {
-  border-color: #e8e2d5;
-  background: #e8e2d5;
+.pl-button-ivory:hover,
+.pl-button-ivory:focus-visible {
+  border-color: #d8d1bc;
+  background: #d8d1bc;
+  color: #20211d !important;
 }
 
 .pl-contact {

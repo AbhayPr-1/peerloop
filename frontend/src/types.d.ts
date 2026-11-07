@@ -7,12 +7,18 @@ interface Window {
     getDetectedWalletNames(): Promise<string[]>;
     DETECTION_TIMEOUT_MS: number;
   };
+  PeerLoopAccount?: {
+    renderDashboard(): void;
+    setView(view: string): void;
+    showEscrowDashboard(purchase?: any): void;
+    refreshEscrowState(productId: string, escrowId: string, state: number): void;
+    updateListings(products: any[]): void;
+    removeListing(productId: string): void;
+  };
   getWalletTransactionHistory(walletAddress: string): Promise<{ purchased: any[]; sold: any[] }>;
   invalidateWalletTransactionHistory(): void;
   recordConfirmedEscrowPurchase(purchase: any): any;
   updateConfirmedEscrowState(productId: string, escrowId: string, state: number): void;
-  refreshAccountDashboardEscrowState(productId: string, escrowId: string, state: number): void;
-  showEscrowDashboard(purchase?: any): void;
 }
 
 interface HTMLElementTagNameMap {
@@ -45,5 +51,3 @@ declare const getWalletTransactionHistory: Window['getWalletTransactionHistory']
 declare const invalidateWalletTransactionHistory: Window['invalidateWalletTransactionHistory'];
 declare const recordConfirmedEscrowPurchase: Window['recordConfirmedEscrowPurchase'];
 declare const updateConfirmedEscrowState: Window['updateConfirmedEscrowState'];
-declare const refreshAccountDashboardEscrowState: Window['refreshAccountDashboardEscrowState'];
-declare const showEscrowDashboard: Window['showEscrowDashboard'];

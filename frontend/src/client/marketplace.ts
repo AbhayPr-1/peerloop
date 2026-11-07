@@ -82,6 +82,13 @@ function renderProducts(list) {
   list.forEach(p => grid.appendChild(createProductCard(p)));
 }
 
+function removeProductFromMarketplace(productId) {
+    const id = String(productId);
+    realtimeRemovedProductIds.add(id);
+    allProducts = allProducts.filter(product => String(product._id) !== id);
+    filterAndSortProducts();
+}
+
 async function loadProductsFromChain() {
     const productsFromChain = await readMarketplaceProducts();
     let categories = {};
@@ -135,6 +142,9 @@ async function fetchProducts(waitForSync = false, retryCount = 0) {
         const products = await loadProductsFromChain();
         if (refreshVersion !== productRefreshVersion) return;
         allProducts = products;
+        if (currentUser && window.PeerLoopAccount) {
+            window.PeerLoopAccount.updateListings(products);
+        }
         filterAndSortProducts();
         
     } catch (error) {
@@ -226,6 +236,14 @@ function filterAndSortProducts() {
     }
     if (!escrowId) throw new Error('Purchase was confirmed, but its escrow record could not be read.');
 
+    removeProductFromMarketplace(product._id);
+    let soldAt = null;
+    try {
+      const blockTimestamp = await getMarketplaceBlockTimestamp(receipt.blockNumber);
+      soldAt = new Date(blockTimestamp * 1000).toISOString();
+    } catch (error) {
+      console.warn('Could not read confirmed purchase block timestamp:', error.message);
+    }
     const confirmedPurchase = recordConfirmedEscrowPurchase({
         productId: product._id,
         name: product.name,
@@ -237,10 +255,13 @@ function filterAndSortProducts() {
         category: product.category,
         escrowId,
         transactionHash: receipt.transactionHash || tx.hash,
-        blockNumber: receipt.blockNumber
+        blockNumber: receipt.blockNumber,
+        soldAt
     });
     
-    showEscrowDashboard(confirmedPurchase);
+    if (window.PeerLoopAccount) {
+        window.PeerLoopAccount.showEscrowDashboard(confirmedPurchase);
+    }
     showMessage("Purchase secured in escrow. Review its status and release or refund it from Escrow.");
 
     fetchProducts(true); 
@@ -281,9 +302,8 @@ async function deleteProduct(productId, buttonElement) {
       
       showMessage("Listing deleted successfully!");
       
-      if (Array.isArray(accountDashboardListings)) {
-        accountDashboardListings = accountDashboardListings.filter((product) => String(product._id) !== String(productId));
-        document.getElementById('profile-listing-count').textContent = String(accountDashboardListings.length);
+      if (window.PeerLoopAccount) {
+        window.PeerLoopAccount.removeListing(productId);
       }
 
       buttonElement.closest('.card-neon-border').remove(); 

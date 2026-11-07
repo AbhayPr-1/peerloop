@@ -8,7 +8,6 @@ function UserProfile() {
             <div>
               <span className="account-banner-eyebrow">PeerLoop member</span>
               <h2 id="profile-display-name">Your Profile</h2>
-              <p id="profile-wallet-address" className="profile-wallet">Connect a wallet to view your profile.</p>
             </div>
           </div>
           <div className="profile-network"><span className="network-dot" />Sepolia marketplace</div>
