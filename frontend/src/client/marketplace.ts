@@ -34,10 +34,10 @@ function createProductCard(product) {
     <div class="text-sm mb-2" style="overflow-wrap: break-word;">
       Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
     </div>
-    <div class="flex items-center justify-between mb-4">
-      <span class="text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-      <span class="text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
-    </div><div class="grid grid-cols-2 gap-3">${actionButtons}</div>`;
+    <div class="product-card-meta mb-4">
+      <span class="product-card-price text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
+      <span class="product-card-category text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
+    </div><div class="product-card-actions grid grid-cols-2 gap-3">${actionButtons}</div>`;
   const imageGallery = createProductImageGallery(product.imageUrl, product.name, 'marketplace', () => showQuickView(product));
   card.querySelector('.product-gallery-slot').replaceWith(imageGallery);
 

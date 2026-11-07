@@ -134,11 +134,11 @@ function showQuickView(product) {
                 <div class="text-sm mb-4" style="overflow-wrap: break-word;">
                   Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
                 </div>
-                <div class="flex items-center justify-between mb-6">
-                    <span class="text-3xl text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
-                    <span class="text-sm px-3 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
+                <div class="product-card-meta mb-6">
+                    <span class="product-card-price text-3xl text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
+                    <span class="product-card-category text-sm px-3 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
                 </div>
-                <div class="grid grid-cols-2 gap-3">${actionButtons}</div>
+                <div class="product-card-actions grid grid-cols-2 gap-3">${actionButtons}</div>
             </div>
         </div>
     `;

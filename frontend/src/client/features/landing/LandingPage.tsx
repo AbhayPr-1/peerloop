@@ -6,21 +6,21 @@ const editorialImages = [
   {
     src: 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=1200&q=85',
     alt: 'Sculptural mid-century chair in a quiet interior',
-    label: '01 / OBJECTS WITH A PAST',
+    label: 'OBJECTS WITH A PAST',
     title: 'A little more lived in.',
     className: 'pl-editorial-item pl-editorial-item--large'
   },
   {
     src: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=85',
     alt: 'Classic watch photographed against a warm neutral background',
-    label: '02 / THE EVERYDAY',
+    label: 'THE EVERYDAY',
     title: 'Keep time beautifully.',
     className: 'pl-editorial-item'
   },
   {
     src: 'https://images.unsplash.com/photo-1543076447-215ad9ba6923?auto=format&fit=crop&w=900&q=85',
     alt: 'Well-kept leather accessories',
-    label: '03 / MADE TO CARRY ON',
+    label: 'MADE TO CARRY ON',
     title: 'Good things go places.',
     className: 'pl-editorial-item pl-editorial-item--offset'
   }
@@ -130,17 +130,16 @@ export function LandingPage() {
         </div>
 
         <figure className="pl-hero-art">
-          <img
-            src="https://images.unsplash.com/photo-1490312278390-ab64016e0aa9?auto=format&fit=crop&w=1500&q=85"
-            alt="Sculptural white vases beneath flowering branches in a sunlit room"
-            fetchPriority="high"
-          />
-          <figcaption className="pl-image-caption">
-            <span>A SECOND LIFE, WELL LIVED</span><span>PEERLOOP / 001</span>
-          </figcaption>
-          <div className="pl-image-note" aria-hidden="true">
-            <span>PASS IT ON</span><i>↗</i><span>KEEP IT MOVING</span>
+          <div className="pl-hero-image">
+            <img
+              src="https://images.unsplash.com/photo-1490312278390-ab64016e0aa9?auto=format&fit=crop&w=1500&q=85"
+              alt="Sculptural white vases beneath flowering branches in a sunlit room"
+              fetchPriority="high"
+            />
           </div>
+          <figcaption className="pl-image-note">
+            Found once. Loved all over again.
+          </figcaption>
         </figure>
 
         <a className="pl-scroll" href="#philosophy">
@@ -150,7 +149,7 @@ export function LandingPage() {
 
       <section id="services" className="pl-story">
         <section id="philosophy" className="pl-philosophy" data-reveal="philosophy">
-          <div className="pl-section-index">01 <span>/</span> THE PEERLOOP IDEA</div>
+          <div className="pl-section-index">THE PEERLOOP IDEA</div>
           <div className="pl-philosophy-copy">
             <p className="pl-kicker">A little less waste. A lot more meaning.</p>
             <h2>The next chapter<br />is <em>closer than new.</em></h2>
@@ -160,9 +159,9 @@ export function LandingPage() {
               and giving every good piece somewhere to go next.
             </p>
             <div className="pl-values">
-              <span><b>01</b> Keep good things in use</span>
-              <span><b>02</b> Buy with intention</span>
-              <span><b>03</b> Trade directly, person to person</span>
+              <span>Keep good things in use</span>
+              <span>Buy with intention</span>
+              <span>Trade directly, person to person</span>
             </div>
           </div>
           <figure className="pl-philosophy-image">
@@ -177,23 +176,20 @@ export function LandingPage() {
 
         <section className="pl-process" id="how-it-works" data-reveal="process">
           <div className="pl-process-heading">
-            <p className="pl-section-index">02 <span>/</span> SERVICES · HOW IT WORKS</p>
+            <p className="pl-section-index">SERVICES · HOW IT WORKS</p>
             <h2>From one good<br />thing to <em>another.</em></h2>
             <p className="pl-process-intro">A marketplace should feel as human as the exchange itself.</p>
           </div>
           <div className="pl-steps">
             <article className="pl-service-card">
-              <span className="pl-step-number">01</span>
               <h3>Discover</h3>
               <p>Explore pieces listed by other people. Find something useful, lovely, or simply right for you.</p>
             </article>
             <article className="pl-service-card">
-              <span className="pl-step-number">02</span>
               <h3>Connect</h3>
               <p>Get to know the person behind the listing and choose the pieces you want to make your own.</p>
             </article>
             <article className="pl-service-card">
-              <span className="pl-step-number">03</span>
               <h3>Exchange</h3>
               <p>Complete purchases with ETH through a blockchain-powered marketplace built for transparent exchange.</p>
             </article>
@@ -210,7 +206,7 @@ export function LandingPage() {
             <figcaption>Good things, ready for their next owner.</figcaption>
           </figure>
           <div className="pl-trust-copy">
-            <p className="pl-section-index">03 <span>/</span> FEATURES THAT BUILD TRUST</p>
+            <p className="pl-section-index">FEATURES THAT BUILD TRUST</p>
             <h2>Personal by nature.<br /><em>Transparent by design.</em></h2>
             <p>
               PeerLoop connects buyers and sellers directly, with wallet-based identity and
@@ -218,11 +214,11 @@ export function LandingPage() {
               every exchange.
             </p>
             <ul className="pl-feature-grid">
-              <li><span aria-hidden="true">01</span><div><h3>Direct trading</h3><p>Buy and sell person to person.</p></div></li>
-              <li><span aria-hidden="true">02</span><div><h3>Escrow payments</h3><p>Funds stay held until the buyer releases or refunds.</p></div></li>
-              <li><span aria-hidden="true">03</span><div><h3>On-chain records</h3><p>Purchases and escrow actions are recorded on Sepolia.</p></div></li>
-              <li><span aria-hidden="true">04</span><div><h3>Wallet identity</h3><p>Connect a wallet to make marketplace transactions.</p></div></li>
-              <li><span aria-hidden="true">05</span><div><h3>Keep goods moving</h3><p>Give useful, well-loved pieces another chapter.</p></div></li>
+              <li><div><h3>Direct trading</h3><p>Buy and sell person to person.</p></div></li>
+              <li><div><h3>Escrow payments</h3><p>Funds stay held until the buyer releases or refunds.</p></div></li>
+              <li><div><h3>On-chain records</h3><p>Purchases and escrow actions are recorded on Sepolia.</p></div></li>
+              <li><div><h3>Wallet identity</h3><p>Connect a wallet to make marketplace transactions.</p></div></li>
+              <li><div><h3>Keep goods moving</h3><p>Give useful, well-loved pieces another chapter.</p></div></li>
             </ul>
           </div>
         </section>
@@ -230,7 +226,7 @@ export function LandingPage() {
         <section className="pl-market" data-reveal="market">
           <div className="pl-market-heading">
             <div>
-              <p className="pl-section-index">04 <span>/</span> THE PEERLOOP EXPERIENCE</p>
+              <p className="pl-section-index">THE PEERLOOP EXPERIENCE</p>
               <h2>Good things<br /><em>find good people.</em></h2>
             </div>
             <button
@@ -265,12 +261,11 @@ export function LandingPage() {
         >
           Find something worth keeping <span aria-hidden="true">↗</span>
         </button>
-        <span className="pl-manifesto-mark" aria-hidden="true">P—L</span>
       </section>
 
       <section className="pl-contact" id="contact" data-reveal="contact">
         <div className="pl-contact-copy">
-          <p className="pl-section-index">05 <span>/</span> SAY HELLO</p>
+          <p className="pl-section-index">SAY HELLO</p>
           <h2>Good things<br /><em>start with a note.</em></h2>
           <p>Questions, ideas, or something lovely to pass along? We’d love to hear from you.</p>
           <a className="pl-contact-link" href={`mailto:${CONTACT_EMAIL}`}>
@@ -318,7 +313,6 @@ export function LandingPage() {
           </nav>
         </div>
         <div className="pl-footer-bottom">
-          <small>© {new Date().getFullYear()} PeerLoop. A more considered exchange.</small>
           <a href="#hero">Back to top ↑</a>
         </div>
       </footer>

@@ -98,6 +98,11 @@ html[data-theme='light'] .auth-modal-content { background: rgba(255,255,255,.9);
 #product-grid h3, #my-listings-grid h3, #sold-history-grid h3, #purchase-history-grid h3, #seller-profile-grid h3 { font-size: 1.14rem; letter-spacing: -.02em; }
 #product-grid .grid.grid-cols-2 { margin-top: auto; }
 #product-grid .grid.grid-cols-2 button { min-height: 42px; padding: .55rem .7rem; font-size: .9rem; }
+#product-grid .product-card-meta, .product-card-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.product-card-price { flex: 0 0 auto; white-space: nowrap; }
+.product-card-category { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.product-card-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.product-card-actions button { width: 100%; min-width: 0; padding: .55rem .5rem; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; }
 #product-grid .seller-link { color: #9de8f8; text-decoration: none; }
 #product-grid .seller-link:hover { text-decoration: underline; }
 #product-grid [class*="rounded bg-gray-700"], #product-grid .rounded.bg-gray-700 { border: 1px solid rgba(168,221,240,.16); background: rgba(255,255,255,.07); }
