@@ -5,9 +5,19 @@ import "hardhat/console.sol";
 
 contract Marketplace {
     uint256 private _productCounter;
+    uint256 private _escrowCounter;
     address public owner;
 
     mapping(uint256 => Product) public products;
+    mapping(uint256 => Escrow) public escrows;
+
+    enum EscrowState {
+        None,
+        Created,
+        Released,
+        Refunded,
+        Disputed
+    }
 
     struct Product {
         uint256 id;
@@ -18,6 +28,16 @@ contract Marketplace {
         address payable seller;
         address payable buyer;
         bool isSold;
+    }
+
+    struct Escrow {
+        uint256 id;
+        uint256 productId;
+        address payable seller;
+        address payable buyer;
+        uint256 amount;
+        uint256 createdAt;
+        EscrowState state;
     }
 
     event ProductListed(
@@ -38,6 +58,30 @@ contract Marketplace {
         uint256 id,
         string name,
         address seller
+    );
+    event EscrowCreated(
+        uint256 escrowId,
+        uint256 productId,
+        address seller,
+        address buyer,
+        uint256 amount
+    );
+    event EscrowReleased(
+        uint256 escrowId,
+        uint256 productId,
+        address seller,
+        uint256 amount
+    );
+    event EscrowRefunded(
+        uint256 escrowId,
+        uint256 productId,
+        address buyer,
+        uint256 amount
+    );
+    event EscrowDisputed(
+        uint256 escrowId,
+        uint256 productId,
+        address initiator
     );
 
     constructor() {
@@ -86,6 +130,83 @@ contract Marketplace {
         emit ProductSold(_id, _product.name, _product.price, _product.seller, _product.buyer);
     }
 
+    function buyProductWithEscrow(uint256 _id) public payable {
+        Product storage _product = products[_id];
+
+        require(_product.seller != address(0), "Product does not exist");
+        require(_product.isSold == false, "Product is already sold");
+        require(msg.sender != _product.seller, "You cannot buy your own product");
+        require(msg.value == _product.price, "Please provide the exact price");
+
+        _product.buyer = payable(msg.sender);
+        _product.isSold = true;
+
+        _escrowCounter++;
+        uint256 _escrowId = _escrowCounter;
+
+        escrows[_id] = Escrow({
+            id: _escrowId,
+            productId: _id,
+            seller: _product.seller,
+            buyer: payable(msg.sender),
+            amount: msg.value,
+            createdAt: block.timestamp,
+            state: EscrowState.Created
+        });
+
+        emit EscrowCreated(_escrowId, _id, _product.seller, msg.sender, msg.value);
+        emit ProductSold(_id, _product.name, _product.price, _product.seller, _product.buyer);
+    }
+
+    function releaseEscrow(uint256 _id) public {
+        Escrow storage _escrow = escrows[_id];
+
+        require(_escrow.id != 0, "No escrow exists for this product");
+        require(_escrow.state == EscrowState.Created, "Escrow is not in a releasable state");
+        require(msg.sender == _escrow.buyer, "Only buyer can release escrow funds");
+
+        _escrow.state = EscrowState.Released;
+        (bool success, ) = _escrow.seller.call{value: _escrow.amount}("");
+        require(success, "Escrow payout failed");
+
+        emit EscrowReleased(_escrow.id, _id, _escrow.seller, _escrow.amount);
+    }
+
+    function refundEscrow(uint256 _id) public {
+        Escrow storage _escrow = escrows[_id];
+
+        require(_escrow.id != 0, "No escrow exists for this product");
+        require(
+            _escrow.state == EscrowState.Created || _escrow.state == EscrowState.Disputed,
+            "Escrow cannot be refunded in its current state"
+        );
+        require(
+            msg.sender == _escrow.buyer || msg.sender == _escrow.seller || msg.sender == owner,
+            "Only the parties involved may refund escrow"
+        );
+
+        _escrow.state = EscrowState.Refunded;
+        (bool success, ) = _escrow.buyer.call{value: _escrow.amount}("");
+        require(success, "Escrow refund failed");
+
+        Product storage _product = products[_id];
+        _product.buyer = payable(address(0));
+        _product.isSold = false;
+
+        emit EscrowRefunded(_escrow.id, _id, _escrow.buyer, _escrow.amount);
+    }
+
+    function disputeEscrow(uint256 _id) public {
+        Escrow storage _escrow = escrows[_id];
+
+        require(_escrow.id != 0, "No escrow exists for this product");
+        require(_escrow.state == EscrowState.Created, "Escrow is not currently active");
+        require(msg.sender == _escrow.buyer || msg.sender == _escrow.seller, "Unauthorized dispute");
+
+        _escrow.state = EscrowState.Disputed;
+        emit EscrowDisputed(_escrow.id, _id, msg.sender);
+    }
+
     function deleteProduct(uint256 _id) public {
         Product storage _product = products[_id];
 
@@ -96,6 +217,31 @@ contract Marketplace {
         _product.seller = payable(address(0));
 
         emit ProductDeleted(_id, _product.name, msg.sender);
+    }
+
+    function getEscrow(uint256 _id)
+        public
+        view
+        returns (
+            uint256 id,
+            uint256 productId,
+            address seller,
+            address buyer,
+            uint256 amount,
+            uint256 createdAt,
+            EscrowState state
+        )
+    {
+        Escrow storage _escrow = escrows[_id];
+        return (
+            _escrow.id,
+            _escrow.productId,
+            _escrow.seller,
+            _escrow.buyer,
+            _escrow.amount,
+            _escrow.createdAt,
+            _escrow.state
+        );
     }
 
     function getAllForSaleProducts() public view returns (Product[] memory) {

@@ -118,7 +118,22 @@ hr.neon-hr {
   background-color: var(--dark-card);
   border: 1px solid var(--neon-blue);
   z-index: 10;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+.custom-select-btn + .dropdown-menu {
+  max-height: min(45vh, 280px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.custom-select-btn + .dropdown-menu.open-up {
+  top: auto;
+  bottom: calc(100% + 0.5rem);
+  margin-top: 0;
+}
+html[data-theme='light'] .dropdown-menu {
+  background-color: rgba(255, 255, 255, 0.98);
+  border-color: rgba(148, 163, 184, 0.8);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
 }
 .dropdown-menu a {
   display: block;
@@ -131,6 +146,46 @@ html[data-theme='dark'] .auth-input option { background-color: var(--dark-card);
 html[data-theme='light'] .auth-input option { background-color: #ffffff; color: #212529; }
 html[data-theme='dark'] .dropdown-menu a:hover { background-color: #374151; }
 html[data-theme='light'] .dropdown-menu a:hover { background-color: #e9ecef; }
+html[data-theme='light'] .dropdown-menu .border-t {
+  border-color: rgba(148, 163, 184, 0.7);
+}
+.profile-view-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+.profile-view-tabs button {
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-weight: 600;
+  padding: 0.7rem 1.5rem;
+  border-radius: 9999px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.profile-view-tabs button.active {
+  background: #cfeaf3;
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.08), 0 4px 10px rgba(15, 118, 110, 0.08);
+}
+html[data-theme='light'] .profile-view-tabs {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+html[data-theme='light'] .profile-view-tabs button {
+  color: #475569;
+}
+html[data-theme='light'] .profile-view-tabs button.active,
+html[data-theme='light'] .profile-view-tabs button:hover {
+  background: #cfeaf3;
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px rgba(14, 116, 144, 0.12), 0 4px 10px rgba(14, 116, 144, 0.1);
+}
 .loader {
     width: 18px;
     height: 18px;

@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Preserve",
+    "rootDir": "src/client",
+    "outDir": "dist/js",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "jsx": "react-jsx",
+    "strict": false,
+    "skipLibCheck": true,
+    "noEmitOnError": true
+  },
+  "include": ["src/client/**/*.ts", "src/types.d.ts"]
+}

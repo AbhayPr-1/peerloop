@@ -33,5 +33,5 @@ npx hardhat node
 npm run deploy:local
 ```
 
-After deployment, the script updates the marketplace address in `frontend/js/contract.js`
-and `backend/.env`.
+After deployment, the script updates the marketplace address in `frontend/src/client/contract.ts`
+and the root `.env`.
