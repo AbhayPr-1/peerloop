@@ -24,7 +24,9 @@ export const documentHtml = String.raw`<!DOCTYPE html>
 
 <body class="overflow-x-hidden">
 
+  <script src="/dist/js/apiTransport.js"></script>
   <script src="/dist/js/apiClient.js"></script>
+  <script src="/dist/js/money.js"></script>
   <script src="/dist/js/utils.js"></script>
   <script src="/dist/js/contracts/marketplaceAbi.js"></script>
   <script src="/dist/js/contract.js"></script>

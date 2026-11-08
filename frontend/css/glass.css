@@ -100,7 +100,15 @@ html[data-theme='light'] .auth-modal-content { background: rgba(255,255,255,.9);
 #product-grid .grid.grid-cols-2 button { min-height: 42px; padding: .55rem .7rem; font-size: .9rem; }
 #product-grid .product-card-meta, .product-card-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .product-card-price { flex: 0 0 auto; white-space: nowrap; }
-.product-card-category { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.product-card-category,
+.category-label {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--glass-border);
+  background: var(--surface-muted);
+  color: var(--text-color);
+}
 .product-card-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .product-card-actions button { width: 100%; min-width: 0; padding: .55rem .5rem; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; }
 #product-grid .seller-link { color: #9de8f8; text-decoration: none; }
@@ -225,6 +233,35 @@ html[data-theme='light'] .profile-view-tabs button.active, html[data-theme='ligh
 .profile-table a { color:#9be8f4; text-decoration:none; }
 .profile-table .escrow-status { min-width:0; max-width:300px; white-space:normal; }
 .profile-table .escrow-status > p { white-space:normal; line-height:1.4; }
+.escrow-choice {
+  display: inline-block;
+  margin: 2px 0;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.escrow-choice--release {
+  border-color: rgba(104,112,79,.3);
+  background: rgba(104,112,79,.14);
+  color: #50563d;
+}
+.escrow-choice--refund {
+  border-color: rgba(185,55,47,.3);
+  background: rgba(185,55,47,.1);
+  color: #a52c25;
+}
+html[data-theme='dark'] .escrow-choice--release {
+  border-color: rgba(182,190,150,.36);
+  background: rgba(182,190,150,.15);
+  color: #d5e2ad;
+}
+html[data-theme='dark'] .escrow-choice--refund {
+  border-color: rgba(255,132,124,.38);
+  background: rgba(255,132,124,.14);
+  color: #ffaaa3;
+}
 .escrow-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%; min-width:260px; }
 .escrow-actions button { min-width:0; width:100%; padding:9px 10px; font-size:.78rem; line-height:1.25; white-space:normal; overflow-wrap:anywhere; }
 .profile-empty { padding:42px 18px !important; text-align:center; color:#8ea6b5 !important; }
@@ -565,6 +602,48 @@ html[data-theme='dark'] .profile-view-tabs button.active,
 html[data-theme='dark'] .profile-view-tabs button:hover {
   color: #f2f0e9;
   background: rgba(182,190,150,.14);
+}
+
+#profile-claimable-payments {
+  margin-bottom: 18px;
+}
+#profile-claimable-payments .profile-payout-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  justify-content: initial;
+  gap: 18px;
+}
+#profile-claimable-payments .profile-payout-heading > div {
+  min-width: 0;
+}
+#profile-claimable-payments #profile-claimable-balance {
+  white-space: nowrap;
+}
+#profile-claimable-payments #profile-withdraw-payments-btn {
+  justify-self: end;
+}
+#profile-claimable-payments .profile-payout-description {
+  margin: 0;
+  padding: 14px 24px 18px;
+  line-height: 1.5;
+}
+@media(max-width: 700px) {
+  #profile-claimable-payments .profile-payout-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 18px;
+  }
+  #profile-claimable-payments .profile-payout-description {
+    padding: 12px 18px 16px;
+  }
+}
+@media(max-width: 430px) {
+  #profile-claimable-payments .profile-payout-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #profile-claimable-payments #profile-withdraw-payments-btn {
+    justify-self: start;
+  }
 }
 
 /* Keep the listing photo dropzone neutral instead of using the old cyan treatment. */

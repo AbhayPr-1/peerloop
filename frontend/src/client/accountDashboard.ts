@@ -112,11 +112,20 @@
     if (isListings) {
       listingGrid.replaceChildren();
       if (listings === null) {
+        if (listingsLoading) {
+          listingGrid.innerHTML = Array.from({ length: 3 }).map(() => `
+            <div class="theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col pl-skeleton-card">
+              <div class="w-full h-44 rounded-xl bg-gray-700/30 mb-4 skeleton-shimmer"></div>
+              <div class="h-6 w-3/4 rounded bg-gray-700/30 mb-3 skeleton-shimmer"></div>
+              <div class="h-4 w-full rounded bg-gray-700/20 mb-4 skeleton-shimmer"></div>
+              <div class="h-10 rounded-full bg-gray-700/30 skeleton-shimmer mt-auto"></div>
+            </div>
+          `).join('');
+          return;
+        }
         const errorMessage = document.createElement('p');
         errorMessage.className = 'profile-empty col-span-full';
-        errorMessage.textContent = listingsLoading
-          ? 'Loading your listings…'
-          : `Could not load listings: ${listingsError?.message || 'Please try again.'}`;
+        errorMessage.textContent = `Could not load listings: ${listingsError?.message || 'Please try again.'}`;
         listingGrid.appendChild(errorMessage);
         return;
       }
@@ -149,7 +158,7 @@
       cell.colSpan = 7;
       cell.className = 'profile-empty';
       if (!historyError) {
-        cell.textContent = 'Checking Sepolia for your activity…';
+        cell.innerHTML = '<div class="py-6 flex items-center justify-center gap-3 text-gray-400"><span class="loader"></span><span>Checking Sepolia for your activity…</span></div>';
       } else {
         cell.textContent = 'Could not load transaction history. Check your connection and retry.';
         const retryButton = document.createElement('button');
@@ -290,7 +299,14 @@
       document.getElementById('profile-sold-count').textContent = '—';
     }
     if (view === 'listings' && listings === null) {
-      document.getElementById('profile-listings-grid').innerHTML = '<p class="profile-empty col-span-full">Loading your listings…</p>';
+      if (typeof allProducts !== 'undefined' && Array.isArray(allProducts) && allProducts.length > 0) {
+        listings = allProducts.filter(item =>
+          item.seller && item.seller.toLowerCase() === address && !item.isSold
+        );
+        document.getElementById('profile-listing-count').textContent = String(listings.length);
+      } else {
+        document.getElementById('profile-listings-grid').innerHTML = '<p class="profile-empty col-span-full">Loading your listings…</p>';
+      }
     }
     history = optimisticHistory || cachedHistory;
     if (history) historyWallet = address;
@@ -319,29 +335,37 @@
     const listingPromise = view === 'listings' && listings === null
       ? loadListings(currentRequestId)
       : Promise.resolve(listings);
-    const [historyResult, listingResult] = await Promise.allSettled([historyPromise, listingPromise]);
+
+    // Fire listing and history in parallel but let each repaint independently
+    // so the listings view doesn't stall waiting for history log queries.
+    listingPromise.then(() => {
+      if (currentRequestId !== requestId) return;
+      if (view === 'listings') paintActivityRows();
+    }).catch(error => {
+      if (currentRequestId !== requestId) return;
+      listings = null;
+      listingsError = error;
+      listingsLoading = false;
+      document.getElementById('profile-listing-count').textContent = 'Unavailable';
+      if (view === 'listings') paintActivityRows();
+    });
+
+    const [historyResult] = await Promise.allSettled([historyPromise, listingPromise]);
     if (currentRequestId !== requestId) return;
     historyLoading = false;
-    if (history && view !== 'listings') paintActivityRows();
+    paintActivityRows();
     const historyOk = historyResult.status === 'fulfilled';
     if (refreshHistory && historyOk) {
       historyFreshWallet = address;
       historyUpdatedAt = Date.now();
     }
-    const listingOk = view !== 'listings' || listingResult.status === 'fulfilled';
+    const listingOk = view !== 'listings' || listings !== null;
     if (!historyOk && !history) {
       document.getElementById('profile-owned-value').textContent = 'Unavailable';
       document.getElementById('profile-sold-count').textContent = 'Unavailable';
       historyError = historyResult.reason;
       console.error('Could not load profile transaction history:', historyResult.reason);
       paintActivityRows();
-    }
-    if (!listingOk) {
-      listings = null;
-      listingsError = listingResult.reason;
-      listingsLoading = false;
-      document.getElementById('profile-listing-count').textContent = 'Unavailable';
-      if (view === 'listings') paintActivityRows();
     }
     if (!historyOk || !listingOk) {
       const issues = [];
@@ -358,7 +382,6 @@
     historyRequestWallet = address;
     const historyPromise = getWalletTransactionHistory(wallet, partialHistory => {
       if (currentRequestId !== requestId) return;
-      if (history) return;
       history = partialHistory;
       historyWallet = address;
       paintHistoryStats(partialHistory);
@@ -442,31 +465,45 @@
   function refreshEscrowState(productId, escrowId, state) {
     if (!history) return;
     activityUpdateVersion += 1;
+    lastActivitySignature = '';
     for (const item of [...history.purchased, ...history.sold]) {
       if (item._id !== String(productId) || String(item.escrowId) !== String(escrowId)) continue;
       item.escrowState = Number(state);
       item.refunded = Number(state) === 3;
     }
+    if (currentUser?.walletAddress && typeof updateConfirmedEscrowState === 'function') {
+      updateConfirmedEscrowState(productId, escrowId, state, currentUser.walletAddress);
+    }
     const ownedItems = history.purchased.filter(item => !item.refunded
       && !history.sold.some(sold => sold._id === item._id
         && !sold.refunded && Number(sold.blockNumber) > Number(item.blockNumber)));
     const ownedValue = window.PeerLoopMoney.sumEth(ownedItems.map(item => item.price));
-    document.getElementById('profile-owned-value').textContent = `${window.PeerLoopMoney.fromWei(ownedValue)} ETH`;
-    document.getElementById('profile-sold-count').textContent = String(
+    const ownedValEl = document.getElementById('profile-owned-value');
+    if (ownedValEl) ownedValEl.textContent = `${window.PeerLoopMoney.fromWei(ownedValue)} ETH`;
+    const soldCountEl = document.getElementById('profile-sold-count');
+    if (soldCountEl) soldCountEl.textContent = String(
       history.sold.filter(item => !item.refunded).length
     );
+    void refreshClaimableBalance();
     paintActivityRows();
   }
 
   function invalidateHistory() {
     historyUpdatedAt = 0;
     historyFreshWallet = '';
+    lastActivitySignature = '';
   }
 
   function setView(nextView) {
     view = nextView;
     profileViewManuallySelected = true;
     autoSwitchedToDisputedEscrow = false;
+    if (view === 'listings' && listings === null && currentUser && typeof allProducts !== 'undefined' && Array.isArray(allProducts) && allProducts.length > 0) {
+      listings = allProducts.filter(item =>
+        item.seller && item.seller.toLowerCase() === currentUser.walletAddress.toLowerCase() && !item.isSold
+      );
+      document.getElementById('profile-listing-count').textContent = String(listings.length);
+    }
     paintActivityRows();
     if (view === 'listings' && listings === null && currentUser) {
       void loadListings(requestId).catch(error => {
@@ -580,10 +617,16 @@
   async function renderEscrowStatus(productId, container, confirmedState = null, historyRecord = null) {
     if (!container) return;
     container.replaceChildren();
-    if (historyRecord?.escrowId && [2, 3].includes(Number(historyRecord.escrowState))) {
+
+    // Determine the active state from confirmed overrides or history record.
+    const activeState = confirmedState ?? (historyRecord?.escrowState != null ? Number(historyRecord.escrowState) : null);
+
+    // Fast-path: if the state is already known to be terminal (released or refunded),
+    // render immediately without any RPC call.
+    if (activeState === 2 || activeState === 3) {
       const completedStatus = document.createElement('p');
       completedStatus.className = 'text-sm text-gray-400 mb-2';
-      completedStatus.textContent = Number(historyRecord.escrowState) === 2
+      completedStatus.textContent = activeState === 2
         ? 'Payment released to seller'
         : 'Payment refunded';
       container.appendChild(completedStatus);
@@ -692,11 +735,17 @@
         }
         const voteView = getDisputeVoteView(votes, isBuyer);
         const otherParty = isBuyer ? 'Seller' : 'Buyer';
+        const appendChoice = (prefix, choice) => {
+          const label = document.createElement('span');
+          label.className = `escrow-choice escrow-choice--${choice}`;
+          label.textContent = choice === 'release' ? 'Release to seller' : 'Refund to buyer';
+          status.append(document.createElement('br'), prefix, label, '.');
+        };
         if (voteView.myVote) {
-          status.append(document.createElement('br'), 'You selected ' + (voteView.myVote === 'release' ? 'Release to seller' : 'Refund to buyer') + '.');
+          appendChoice('You selected ', voteView.myVote);
         }
         if (voteView.otherVote) {
-          status.append(document.createElement('br'), otherParty + ' selected ' + (voteView.otherVote === 'release' ? 'Release to seller' : 'Refund to buyer') + '.');
+          appendChoice(otherParty + ' selected ', voteView.otherVote);
         }
         if (voteView.myVote && !voteView.otherVote) {
           status.append(document.createElement('br'), 'Waiting for the ' + (isBuyer ? 'seller' : 'buyer') + ' to choose.');
@@ -740,19 +789,19 @@
       await tx.wait();
       invalidateWalletTransactionHistory();
       invalidateHistory();
-      let latestEscrow;
-      try {
-        latestEscrow = await readOnlyContract.escrowHistory(escrowId);
-      } catch (error) {
-        if (error.code !== 'CALL_EXCEPTION') throw error;
-        latestEscrow = await readOnlyContract.getEscrow(productId);
-      }
-      const confirmedState = Number(latestEscrow.state);
-      if (confirmedState === 2 || confirmedState === 3) {
+
+      // Derive the expected state from the method name instead of querying the
+      // public RPC which may still be 1-2 blocks behind the mined transaction.
+      const knownStateByMethod = {
+        releaseEscrow: 2,
+        refundEscrow: 3,
+        disputeEscrow: 4
+      };
+      const confirmedState = knownStateByMethod[method] ?? null;
+
+      if (confirmedState !== null) {
         updateConfirmedEscrowState(productId, escrowId, confirmedState, currentUser?.walletAddress || '');
         refreshEscrowState(productId, escrowId, confirmedState);
-      } else if (confirmedState === 4) {
-        updateConfirmedEscrowState(productId, escrowId, confirmedState, currentUser?.walletAddress || '');
       }
       if (confirmedState === 3) {
         const refundedProduct = [...(history?.purchased || []), ...(history?.sold || [])]
@@ -798,6 +847,7 @@
     setView,
     showEscrowDashboard,
     refreshEscrowState,
+    refreshClaimableBalance,
     updateListings,
     removeListing,
     getActivityRecords,

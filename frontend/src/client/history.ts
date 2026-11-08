@@ -31,11 +31,25 @@
 
   function readWalletHistoryCache(walletAddress) {
     const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
-    const cached = walletHistoryCache.get(cacheKey);
+    let cached = walletHistoryCache.get(cacheKey);
+    if (!cached && typeof sessionStorage !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem(cacheKey);
+        if (stored) {
+          cached = JSON.parse(stored);
+          if (cached && typeof cached === 'object') {
+            walletHistoryCache.set(cacheKey, cached);
+          }
+        }
+      } catch (_) {}
+    }
     if (!cached || !Number.isFinite(cached.savedAt) || cached.savedAt > Date.now()
       || Date.now() - cached.savedAt > WALLET_HISTORY_CACHE_MAX_AGE
       || !Array.isArray(cached.history?.purchased) || !Array.isArray(cached.history?.sold)) {
       walletHistoryCache.delete(cacheKey);
+      if (typeof sessionStorage !== 'undefined') {
+        try { sessionStorage.removeItem(cacheKey); } catch (_) {}
+      }
       return null;
     }
     return cached.history;
@@ -43,7 +57,13 @@
 
   function saveWalletHistoryCache(walletAddress, history) {
     const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
-    walletHistoryCache.set(cacheKey, { savedAt: Date.now(), history });
+    const payload = { savedAt: Date.now(), history };
+    walletHistoryCache.set(cacheKey, payload);
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+      } catch (_) {}
+    }
     if (walletHistoryCache.size > 20) {
       walletHistoryCache.delete(walletHistoryCache.keys().next().value);
     }
@@ -93,9 +113,11 @@
     const logs = [];
     let nextUrl = LOGS_URL;
     const seenCursors = new Set();
+    let pageCount = 0;
 
-    while (nextUrl) {
-      const response = await fetchWithTimeout(nextUrl, {}, 8000);
+    while (nextUrl && pageCount < 10) {
+      pageCount++;
+      const response = await fetchWithTimeout(nextUrl, {}, 4000);
       if (!response.ok) {
         throw new Error(`Sepolia transaction history service returned HTTP ${response.status}.`);
       }
@@ -219,15 +241,17 @@
     }
 
     return soldEvents
-      .map((event) => ({
-        ...event,
-        escrowState: event.escrowId
-          ? confirmedEscrowStates.get(event.escrowId) || escrowStateById.get(event.escrowId) || 1
-          : 0,
-        refunded: event.escrowId
-          ? (confirmedEscrowStates.get(event.escrowId) || escrowStateById.get(event.escrowId)) === 3
-          : false
-      }))
+      .map((event) => {
+        const confirmedState = event.escrowId && confirmedEscrowStates.has(event.escrowId)
+          ? confirmedEscrowStates.get(event.escrowId)
+          : null;
+        const resolvedState = confirmedState ?? (event.escrowId ? (escrowStateById.get(event.escrowId) ?? 1) : 0);
+        return {
+          ...event,
+          escrowState: resolvedState,
+          refunded: event.escrowId ? resolvedState === 3 : false
+        };
+      })
       .sort((a, b) => b.blockNumber - a.blockNumber);
   }
 
@@ -294,9 +318,12 @@
       });
     });
     const eventsByHash = new Map();
-    confirmedPurchasesByHash.forEach((event, hash) => eventsByHash.set(hash, event));
     indexedEvents.forEach((event) => {
-      eventsByHash.set(event.transactionHash.toLowerCase(), event);
+      if (event.transactionHash) eventsByHash.set(event.transactionHash.toLowerCase(), event);
+    });
+    confirmedPurchasesByHash.forEach((event, hash) => {
+      const existing = eventsByHash.get(hash);
+      eventsByHash.set(hash, existing ? { ...existing, ...event } : event);
     });
     const events = [...eventsByHash.values()];
     const matchingEvents = events.filter((event) =>
@@ -318,7 +345,11 @@
 
   global.clearWalletTransactionHistoryCache = function (walletAddress) {
     if (ethers.utils.isAddress(walletAddress)) {
-      walletHistoryCache.delete(`${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`);
+      const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
+      walletHistoryCache.delete(cacheKey);
+      if (typeof sessionStorage !== 'undefined') {
+        try { sessionStorage.removeItem(cacheKey); } catch (_) {}
+      }
     }
   };
 

@@ -50,14 +50,14 @@ async function initializeReadOnlyProvider() {
         clearTimeout(configTimeout);
     }
 
-    readOnlyRpcUrls = [...new Set([...FALLBACK_RPC_URLS, ...rpcUrls])];
+    readOnlyRpcUrls = [...new Set([...rpcUrls, ...FALLBACK_RPC_URLS])];
     for (const rpcUrl of readOnlyRpcUrls) {
       const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
       provider.pollingInterval = 2000;
       try {
         const network = await withTimeout(
             provider.getNetwork(),
-            5000,
+            2500,
             `${new URL(rpcUrl).hostname} did not respond during network detection.`
         );
         if (Number(network.chainId) !== 11155111) {
@@ -65,7 +65,7 @@ async function initializeReadOnlyProvider() {
         }
         const code = await withTimeout(
             provider.getCode(marketplaceAddress),
-            5000,
+            2500,
             `${new URL(rpcUrl).hostname} did not respond during contract verification.`
         );
         if (!code || code === '0x') {

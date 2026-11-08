@@ -14,7 +14,7 @@ interface PeerLoopMoney {
 
 function loadMoneyHelpers(): PeerLoopMoney {
   const context = { window: {} as { PeerLoopMoney?: PeerLoopMoney } };
-  const scriptPath = path.join(process.cwd(), 'frontend', 'dist', 'js', 'utils.js');
+  const scriptPath = path.join(process.cwd(), 'frontend', 'dist', 'js', 'money.js');
   runInNewContext(readFileSync(scriptPath, 'utf8'), context);
   assert.ok(context.window.PeerLoopMoney);
   return context.window.PeerLoopMoney;
@@ -33,4 +33,11 @@ test('frontend money helpers preserve wei precision for parsing, sums, ordering,
   assert.equal(money.formatEth('0.000000000000000001'), '0.000000000000000001');
   assert.equal(money.formatEth('1.000000000000000000'), '1');
   assert.throws(() => money.toWei('1.0000000000000000001'), /at most 18 places/);
+});
+
+test('money domain script loads before shared utilities and API-dependent feature scripts', () => {
+  const { renderDocument } = require('../../frontend/src/document');
+  const html = renderDocument(undefined, false);
+  assert.ok(html.indexOf('/dist/js/money.js') < html.indexOf('/dist/js/utils.js'));
+  assert.ok(html.indexOf('/dist/js/money.js') < html.indexOf('/dist/js/marketplace.js'));
 });

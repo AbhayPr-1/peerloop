@@ -211,3 +211,46 @@ input:checked + .slider:before { transform: translateX(26px); }
 .slider.round:before { border-radius: 50%; }
 html[data-theme='light'] .modern-button { color: var(--button-text); }
 html[data-theme='light'] #hero .text-gray-300 { color: var(--text-color); }
+
+
+/* Modern UX micro-interactions & feedback */
+.modern-button:active,
+.modern-button-secondary:active {
+  transform: scale(0.96) !important;
+}
+
+.modern-button:focus-visible,
+.modern-button-secondary:focus-visible,
+.auth-input:focus-visible {
+  outline: 2px solid var(--neon-blue);
+  outline-offset: 2px;
+}
+
+#message-box {
+  background: rgba(22, 26, 34, 0.92) !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4) !important;
+}
+
+html[data-theme='light'] #message-box {
+  background: rgba(255, 254, 250, 0.96) !important;
+  color: #20211d !important;
+  border: 1px solid rgba(32, 33, 29, 0.14) !important;
+  box-shadow: 0 16px 48px rgba(32, 33, 29, 0.14) !important;
+}
+
+.cart-item-card {
+  transition: transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.cart-item-card:hover {
+  border-color: var(--neon-blue);
+}
+
+.pl-skeleton-card {
+  border: 1px solid var(--glass-border);
+  min-height: 380px;
+}

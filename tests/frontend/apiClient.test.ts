@@ -16,6 +16,7 @@ interface TestApiClient {
 }
 
 const clientScriptPath = path.join(process.cwd(), 'frontend', 'dist', 'js', 'apiClient.js');
+const transportScriptPath = path.join(process.cwd(), 'frontend', 'dist', 'js', 'apiTransport.js');
 
 function loadApiClient(fetchImplementation: typeof fetch, configuredUrl = 'https://api.peerloop.test/'): TestApiClient {
   const windowObject = {
@@ -29,7 +30,7 @@ function loadApiClient(fetchImplementation: typeof fetch, configuredUrl = 'https
       : null
   };
   const source = readFileSync(clientScriptPath, 'utf8');
-  runInNewContext(source, {
+  const context = {
     window: windowObject,
     document: documentObject,
     fetch: fetchImplementation,
@@ -38,7 +39,9 @@ function loadApiClient(fetchImplementation: typeof fetch, configuredUrl = 'https
     URL,
     setTimeout,
     clearTimeout
-  });
+  };
+  runInNewContext(readFileSync(transportScriptPath, 'utf8'), context);
+  runInNewContext(source, context);
   assert.ok(windowObject.PeerLoopApi);
   return windowObject.PeerLoopApi;
 }
@@ -133,5 +136,6 @@ test('marketplace ABI script loads before contract runtime and retains required 
 
   const { renderDocument } = require('../../frontend/src/document');
   const html = renderDocument(undefined, false);
+  assert.ok(html.indexOf('/dist/js/apiTransport.js') < html.indexOf('/dist/js/apiClient.js'));
   assert.ok(html.indexOf('/dist/js/contracts/marketplaceAbi.js') < html.indexOf('/dist/js/contract.js'));
 });

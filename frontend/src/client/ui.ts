@@ -47,7 +47,7 @@ function showSection(sectionId) {
   }
   navEscrowBtn.classList.toggle('hidden', !currentUser);
   
-  // FIX: Explicitly fetch products only when navigating to the marketplace, no delay on manual navigation
+  // Instant response: fetchProducts renders cache immediately if available
   if (sectionId === 'marketplace') {
       fetchProducts(false);
   }
@@ -106,7 +106,7 @@ function closeConfirmationModal() {
   setTimeout(() => {
     modal.classList.add('hidden');
     currentConfirmAction = null; 
-  }, 300);
+  }, 180);
 }
 
 function showQuickView(product) {
@@ -121,26 +121,26 @@ function showQuickView(product) {
     let actionButtons = "";
     if (!currentUser || (currentUser && currentUser.walletAddress.toLowerCase() !== product.seller.toLowerCase())) {
         actionButtons = `
-          <button class="modern-button-secondary add-to-cart-btn">Add to Cart</button>
-          <button class="modern-button buy-now-btn">Buy with Escrow</button>
+          <button class="modern-button-secondary add-to-cart-btn active:scale-95 transition-transform">Add to Cart</button>
+          <button class="modern-button buy-now-btn active:scale-95 transition-transform">Buy with Escrow</button>
         `;
     }
 
     content.innerHTML = `
-        <button id="close-quick-view-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
+        <button id="close-quick-view-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-200 text-3xl transition-colors">&times;</button>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
             <div class="quick-view-gallery-slot"></div>
             <div class="flex flex-col h-full">
-                <h3 class="text-4xl font-bold text-neon-blue mb-4">${escapeHtml(product.name)}</h3>
-                <p class="text-gray-400 mb-4 flex-grow">${escapeHtml(product.description)}</p>
-                <div class="text-sm mb-4" style="overflow-wrap: break-word;">
-                  Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
+                <h3 class="text-3xl font-bold text-neon-blue mb-3">${escapeHtml(product.name)}</h3>
+                <p class="text-gray-300 text-sm mb-4 leading-relaxed flex-grow">${escapeHtml(product.description)}</p>
+                <div class="text-sm mb-4 text-gray-400" style="overflow-wrap: break-word;">
+                  Seller: <a href="#" class="seller-link text-neon-blue hover:underline">${escapeHtml(sellerDisplay)}</a>
                 </div>
-                <div class="product-card-meta mb-6">
+                <div class="product-card-meta mb-6 flex items-center justify-between">
                     <span class="product-card-price text-3xl text-neon-pink font-bold">${window.PeerLoopMoney.formatEth(product.price)} ETH</span>
-                    <span class="product-card-category text-sm px-3 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
+                    <span class="product-card-category text-xs px-3 py-1 rounded-full bg-gray-700/70 border border-gray-600/40 text-gray-300">${escapeHtml(displayCategory)}</span>
                 </div>
-                <div class="product-card-actions grid grid-cols-2 gap-3">${actionButtons}</div>
+                <div class="product-card-actions grid grid-cols-2 gap-3 mt-auto">${actionButtons}</div>
             </div>
         </div>
     `;
@@ -181,5 +181,5 @@ function closeQuickView() {
     const modal = document.getElementById('quick-view-modal');
     const content = modal.querySelector('.modal-content');
     content.classList.add('scale-95', 'opacity-0');
-    setTimeout(() => modal.classList.add('hidden'), 300);
+    setTimeout(() => modal.classList.add('hidden'), 180);
 }

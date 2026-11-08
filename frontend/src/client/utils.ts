@@ -5,42 +5,6 @@ function escapeHtml(value) {
   })[char]);
 }
 
-const WEI_PER_ETH = 10n ** 18n;
-
-function ethToWei(value) {
-  const amount = String(value).trim();
-  const match = /^(0|[1-9]\d*)(?:\.(\d{0,18}))?$/.exec(amount);
-  if (!match) throw new Error('ETH amount must be a non-negative decimal with at most 18 places.');
-  const fraction = (match[2] || '').padEnd(18, '0');
-  return BigInt(match[1]) * WEI_PER_ETH + BigInt(fraction || '0');
-}
-
-function weiToEth(wei, decimals = 18) {
-  if (typeof wei !== 'bigint' || wei < 0n) throw new Error('Wei amount must be a non-negative integer.');
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) {
-    throw new Error('ETH display precision must be between 0 and 18 decimal places.');
-  }
-  const unit = 10n ** BigInt(18 - decimals);
-  const rounded = ((wei + unit / 2n) / unit) * unit;
-  const whole = rounded / WEI_PER_ETH;
-  if (decimals === 0) return whole.toString();
-  const fraction = (rounded % WEI_PER_ETH).toString().padStart(18, '0').slice(0, decimals);
-  const trimmedFraction = fraction.replace(/0+$/, '');
-  return trimmedFraction ? `${whole}.${trimmedFraction}` : whole.toString();
-}
-
-window.PeerLoopMoney = {
-  toWei: ethToWei,
-  fromWei: weiToEth,
-  formatEth: (value, decimals = 18) => weiToEth(ethToWei(value), decimals),
-  sumEth: values => values.reduce((total, value) => total + ethToWei(value), 0n),
-  compareEth: (left, right) => {
-    const leftWei = ethToWei(left);
-    const rightWei = ethToWei(right);
-    return leftWei < rightWei ? -1 : leftWei > rightWei ? 1 : 0;
-  }
-};
-
 const IPFS_GATEWAYS = [
   'https://ipfs.filebase.io/ipfs/',
   'https://gateway.pinata.cloud/ipfs/',
@@ -124,6 +88,7 @@ function setResilientImage(image, value) {
   image.addEventListener('load', () => {
     if (image.currentSrc === activeSource || image.src === activeSource) {
       clearTimeout(loadTimer);
+      image.classList.add('img-fade-in');
     }
   });
   image.addEventListener('error', () => {
@@ -264,11 +229,42 @@ async function logout() {
   showSection("hero");
 }
 
-function showMessage(message, duration = 3000) {
+let messageTimeoutTimer = null;
+function showMessage(message: string, duration = 3500) {
   const msgBox = document.getElementById("message-box");
-  msgBox.textContent = message;
-  msgBox.classList.remove("hidden");
-  setTimeout(() => msgBox.classList.add("hidden"), duration);
+  if (!msgBox) return;
+  if (messageTimeoutTimer) {
+    clearTimeout(messageTimeoutTimer);
+    messageTimeoutTimer = null;
+  }
+
+  const isSuccess = /success|added|created|saved|restored|released|refunded/i.test(message);
+  const isError = /fail|error|reject|cannot|cancel|lost|unavailable/i.test(message);
+
+  const iconSvg = isSuccess
+    ? '<svg class="w-5 h-5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
+    : isError
+    ? '<svg class="w-5 h-5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>'
+    : '<svg class="w-5 h-5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+
+  msgBox.innerHTML = `
+    <div class="flex items-center gap-3">
+      ${iconSvg}
+      <span class="text-sm font-medium leading-snug">${escapeHtml(message)}</span>
+    </div>
+  `;
+  msgBox.classList.remove("hidden", "toast-slide-out");
+  msgBox.classList.add("toast-slide-in");
+
+  messageTimeoutTimer = setTimeout(() => {
+    msgBox.classList.remove("toast-slide-in");
+    msgBox.classList.add("toast-slide-out");
+    setTimeout(() => {
+      msgBox.classList.add("hidden");
+      msgBox.classList.remove("toast-slide-out");
+      messageTimeoutTimer = null;
+    }, 200);
+  }, duration);
 }
 
 function setButtonLoading(button, isLoading, loadingText = 'Loading...') {

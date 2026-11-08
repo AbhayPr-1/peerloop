@@ -24,6 +24,10 @@ interface PeerLoopApiClient {
   };
 }
 
+interface PeerLoopApiTransport {
+  create(baseUrl: string, fetcher: typeof fetch, createFormData: () => FormData): PeerLoopApiClient;
+}
+
 interface Window {
   PEERLOOP_API_URL?: string;
   PeerLoopMoney: {
@@ -46,6 +50,7 @@ interface Window {
   };
   clearUserCart(): void;
   PeerLoopApi: PeerLoopApiClient;
+  PeerLoopApiTransport: PeerLoopApiTransport;
   ethereum?: any;
   WalletDetection: {
     detectWalletProvider(): Promise<{ info: { name: string; uuid: string } | null; provider: any } | null>;
@@ -58,6 +63,7 @@ interface Window {
     setView(view: string): void;
     showEscrowDashboard(purchase?: any): void;
     refreshEscrowState(productId: string, escrowId: string, state: number): void;
+    refreshClaimableBalance?(): void;
     updateListings(products: any[]): void;
     removeListing(productId: string): void;
     getActivityRecords(

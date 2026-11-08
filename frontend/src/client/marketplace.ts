@@ -2,6 +2,8 @@
 
 const realtimeRemovedProductIds = new Set();
 let productRefreshVersion = 0;
+let filterDebounceTimer = null;
+
 const escrowPurchaseInterface = new ethers.utils.Interface([
     'event EscrowCreated(uint256 escrowId, uint256 productId, address seller, address buyer, uint256 amount)'
 ]);
@@ -10,9 +12,37 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function debouncedFilterAndSort(delayMs = 120) {
+    if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
+    filterDebounceTimer = setTimeout(() => {
+        filterAndSortProducts();
+        filterDebounceTimer = null;
+    }, delayMs);
+}
+
+function renderProductSkeletons(grid) {
+    if (!grid) return;
+    grid.innerHTML = Array.from({ length: 8 }).map(() => `
+      <div class="theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col pl-skeleton-card">
+        <div class="w-full h-48 rounded-xl bg-gray-700/30 mb-4 skeleton-shimmer"></div>
+        <div class="h-6 w-3/4 rounded bg-gray-700/30 mb-3 skeleton-shimmer"></div>
+        <div class="h-4 w-full rounded bg-gray-700/20 mb-2 skeleton-shimmer"></div>
+        <div class="h-4 w-2/3 rounded bg-gray-700/20 mb-4 skeleton-shimmer"></div>
+        <div class="flex justify-between items-center mb-4 mt-auto">
+          <div class="h-6 w-20 rounded bg-gray-700/30 skeleton-shimmer"></div>
+          <div class="h-5 w-16 rounded bg-gray-700/20 skeleton-shimmer"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mt-2">
+          <div class="h-10 rounded-full bg-gray-700/30 skeleton-shimmer"></div>
+          <div class="h-10 rounded-full bg-gray-700/30 skeleton-shimmer"></div>
+        </div>
+      </div>
+    `).join('');
+}
+
 function createProductCard(product) {
   const card = document.createElement("div");
-  card.className = "theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col";
+  card.className = "theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col group relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-xl";
   
   const sellerAddress = product.seller;
   const sellerDisplay = (product.seller && product.seller.name) ? product.seller.name : formatAddress(sellerAddress);
@@ -22,22 +52,22 @@ function createProductCard(product) {
   let actionButtons = "";
   if (!currentUser || (currentUser && currentUser.walletAddress.toLowerCase() !== product.seller.toLowerCase())) {
     actionButtons = `
-      <button class="modern-button-secondary add-to-cart-btn">Add to Cart</button>
-      <button class="modern-button buy-now-btn">Buy with Escrow</button>
+      <button class="modern-button-secondary add-to-cart-btn active:scale-95 transition-transform">Add to Cart</button>
+      <button class="modern-button buy-now-btn active:scale-95 transition-transform">Buy with Escrow</button>
     `;
   }
 
   card.innerHTML = `
     <div class="product-gallery-slot"></div>
     <h3 class="text-2xl font-bold text-neon-blue mb-2">${escapeHtml(product.name)}</h3>
-    <p class="text-gray-400 flex-1 mb-4">${escapeHtml(product.description)}</p>
+    <p class="text-gray-400 flex-1 mb-4 leading-relaxed">${escapeHtml(product.description)}</p>
     <div class="text-sm mb-2" style="overflow-wrap: break-word;">
-      Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
+      Seller: <a href="#" class="seller-link text-neon-blue hover:underline">${escapeHtml(sellerDisplay)}</a>
     </div>
-    <div class="product-card-meta mb-4">
-      <span class="product-card-price text-neon-pink font-bold">${window.PeerLoopMoney.formatEth(product.price)} ETH</span>
-      <span class="product-card-category text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
-    </div><div class="product-card-actions grid grid-cols-2 gap-3">${actionButtons}</div>`;
+    <div class="product-card-meta mb-4 flex items-center justify-between">
+      <span class="product-card-price text-neon-pink font-bold text-xl">${window.PeerLoopMoney.formatEth(product.price)} ETH</span>
+      <span class="product-card-category text-xs px-2.5 py-1 rounded-full bg-gray-700/70 border border-gray-600/40 text-gray-300">${escapeHtml(displayCategory)}</span>
+    </div><div class="product-card-actions grid grid-cols-2 gap-3 mt-auto">${actionButtons}</div>`;
   const imageGallery = createProductImageGallery(product.imageUrl, product.name, 'marketplace', () => showQuickView(product));
   card.querySelector('.product-gallery-slot').replaceWith(imageGallery);
 
@@ -74,9 +104,17 @@ function createProductCard(product) {
 
 function renderProducts(list) {
   const grid = document.getElementById("product-grid");
+  if (!grid) return;
   grid.innerHTML = "";
   if (!list.length) {
-    grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No products match your filters.</p>`;
+    grid.innerHTML = `
+      <div class="col-span-full py-16 text-center glass-panel rounded-2xl">
+        <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-gray-700/30 flex items-center justify-center text-neon-blue">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <p class="text-xl font-bold mb-1">No gears match your filters</p>
+        <p class="text-gray-400 text-sm">Try broadening your search or resetting filters.</p>
+      </div>`;
     return;
   }
   list.forEach(p => grid.appendChild(createProductCard(p)));
@@ -144,22 +182,33 @@ async function loadProductsFromChain() {
 
 async function fetchProducts(waitForSync = false, retryCount = 0, showLoading = !waitForSync) {
     const grid = document.getElementById("product-grid");
+    if (!grid) return;
     const refreshVersion = ++productRefreshVersion;
-    if (showLoading) {
-        const loadingMessage = document.createElement('p');
-        loadingMessage.className = 'text-center text-gray-500 col-span-full';
-        loadingMessage.textContent = 'Loading Explore Gears...';
-        grid.replaceChildren(loadingMessage);
+
+    if (allProducts && allProducts.length > 0) {
+        // Instant response: Render cached data immediately without blanking or lag!
+        filterAndSortProducts();
+    } else if (showLoading) {
+        renderProductSkeletons(grid);
     }
 
     try {
         if (waitForSync) {
-            await delay(1000);
+            await delay(300);
         }
 
         const products = await loadProductsFromChain();
         if (refreshVersion !== productRefreshVersion) return;
-        allProducts = products;
+
+        // Merge: preserve any locally-added listings (e.g. just-created by the
+        // current user) that the lagging public RPC hasn't indexed yet.
+        const chainProductIds = new Set(products.map(p => String(p._id)));
+        const localOnlyProducts = allProducts.filter(p =>
+          !chainProductIds.has(String(p._id))
+          && !p.isSold
+          && !realtimeRemovedProductIds.has(String(p._id))
+        );
+        allProducts = [...products, ...localOnlyProducts];
         if (currentUser && window.PeerLoopAccount) {
             window.PeerLoopAccount.updateListings(products);
         }
@@ -169,27 +218,31 @@ async function fetchProducts(waitForSync = false, retryCount = 0, showLoading = 
         if (refreshVersion !== productRefreshVersion) return;
         console.error("Failed to fetch products:", error);
         if (retryCount < 2) {
-            const retryMessage = document.createElement('p');
-            retryMessage.className = 'text-center text-gray-500 col-span-full';
-            retryMessage.textContent = 'Marketplace is taking longer than usual. Retrying...';
-            grid.replaceChildren(retryMessage);
+            if (allProducts.length === 0) {
+                const retryMessage = document.createElement('p');
+                retryMessage.className = 'text-center text-gray-500 col-span-full py-8';
+                retryMessage.textContent = 'Marketplace is syncing on-chain data. Retrying...';
+                grid.replaceChildren(retryMessage);
+            }
             setTimeout(() => {
                 if (refreshVersion === productRefreshVersion
                     && !document.getElementById('marketplace').classList.contains('hidden')) {
                     fetchProducts(false, retryCount + 1, showLoading);
                 }
-            }, 1000 * (retryCount + 1));
+            }, 800 * (retryCount + 1));
             return;
         }
-        const details = error.shortMessage
-            || error.reason
-            || error.error?.message
-            || error.message
-            || 'Unknown error';
-        const errorMessage = document.createElement('p');
-        errorMessage.className = 'text-center text-red-500 col-span-full';
-        errorMessage.textContent = `Could not load Explore Gears after retrying: ${details}`;
-        grid.replaceChildren(errorMessage);
+        if (allProducts.length === 0) {
+            const details = error.shortMessage
+                || error.reason
+                || error.error?.message
+                || error.message
+                || 'Unknown error';
+            const errorMessage = document.createElement('p');
+            errorMessage.className = 'text-center text-red-500 col-span-full py-8';
+            errorMessage.textContent = `Could not load Explore Gears after retrying: ${details}`;
+            grid.replaceChildren(errorMessage);
+        }
     }
 }
 
@@ -211,10 +264,13 @@ function filterAndSortProducts() {
       || window.PeerLoopMoney.compareEth(priceControl.value, oldBound) >= 0) priceControl.value = bound;
     priceControl.max = bound;
     priceControl.dataset.bound = bound;
-    document.getElementById('price-filter-max-label').textContent = `${bound} ETH`;
+    const maxLabel = document.getElementById('price-filter-max-label');
+    if (maxLabel) maxLabel.textContent = `${bound} ETH`;
     const output = document.getElementById('price-filter-value');
-    output.textContent = window.PeerLoopMoney.compareEth(priceControl.value, bound) >= 0
-      ? 'Any price' : `${priceControl.value} ETH`;
+    if (output) {
+      output.textContent = window.PeerLoopMoney.compareEth(priceControl.value, bound) >= 0
+        ? 'Any price' : `${priceControl.value} ETH`;
+    }
   }
   let list = [...allProducts];
   if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
@@ -231,7 +287,9 @@ function filterAndSortProducts() {
   const count = document.getElementById('product-count');
   if (count) count.textContent = `${list.length} ${list.length === 1 ? 'listing' : 'listings'}`;
   renderProducts(list);
-}async function buyNow(product, buttonElement = null) {
+}
+
+async function buyNow(product, buttonElement = null) {
   if (!currentUser) {
     showAuthModal();
     throw new Error('Sign in before purchasing.');
@@ -295,7 +353,7 @@ function filterAndSortProducts() {
     }
     showMessage("Purchase secured in escrow. Review its status and release or refund it from Escrow.");
 
-    fetchProducts(true); 
+    fetchProducts(false); 
     return { transactionHash: receipt.transactionHash || tx.hash };
 
   } catch (error) {
@@ -338,9 +396,8 @@ async function deleteProduct(productId, buttonElement) {
         window.PeerLoopAccount.removeListing(productId);
       }
 
-      buttonElement.closest('.card-neon-border').remove(); 
-
-      fetchProducts(true); 
+      removeProductFromMarketplace(productId);
+      buttonElement?.closest('.card-neon-border')?.remove(); 
       
   } catch (error) {
       console.error("Product deletion failed:", error);

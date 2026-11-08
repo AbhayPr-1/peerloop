@@ -143,6 +143,9 @@ function applyProductSoldUpdate(productId, name = '', transactionHash = '') {
   window.PeerLoopAccount?.invalidateHistory();
   handleRealTimeCartRemoval(productId, name);
   fetchProducts(false, 0, false);
+  if (!document.getElementById('user-profile-tab')?.classList.contains('hidden')) {
+    window.PeerLoopAccount?.renderDashboard();
+  }
 }
 
 function applyRefundUpdate(productId, escrowId) {
@@ -156,6 +159,7 @@ function applyRefundUpdate(productId, escrowId) {
     currentUser?.walletAddress || ''
   );
   window.PeerLoopAccount?.refreshEscrowState(productId, escrowId, 3);
+  window.PeerLoopAccount?.refreshClaimableBalance?.();
   fetchProducts(false, 0, false);
 }
 
@@ -170,6 +174,9 @@ function applyEscrowUpdate(productId, escrowId, state) {
     currentUser?.walletAddress || ''
   );
   window.PeerLoopAccount?.refreshEscrowState(productId, escrowId, state);
+  if (state === 2 || state === 3) {
+    window.PeerLoopAccount?.refreshClaimableBalance?.();
+  }
 }
 
 async function refreshEscrowStateFromChain(productId, escrowId) {
@@ -229,11 +236,29 @@ document.getElementById('profile-dropdown-btn').addEventListener('click', (e) =>
 });
 document.getElementById('logout-btn').addEventListener('click', logout);
 
-// --- Marketplace Filter Event Listeners ---
-document.getElementById('search-input').addEventListener('input', filterAndSortProducts);
+// --- Marketplace Filter Event Listeners (Debounced for zero-lag responsiveness) ---
+const searchInput = document.getElementById('search-input');
+if (searchInput) {
+  searchInput.addEventListener('input', () => {
+    debouncedFilterAndSort(100);
+  });
+}
 const priceFilter = document.getElementById('price-filter');
-priceFilter.addEventListener('input', filterAndSortProducts);
-document.getElementById('available-only').addEventListener('change', filterAndSortProducts);
+if (priceFilter) {
+  priceFilter.addEventListener('input', () => {
+    const bound = (priceFilter as HTMLInputElement).dataset.bound;
+    const output = document.getElementById('price-filter-value');
+    if (output && bound) {
+      output.textContent = window.PeerLoopMoney.compareEth((priceFilter as HTMLInputElement).value, bound) >= 0
+        ? 'Any price' : `${(priceFilter as HTMLInputElement).value} ETH`;
+    }
+    debouncedFilterAndSort(40);
+  });
+}
+const availableOnly = document.getElementById('available-only');
+if (availableOnly) {
+  availableOnly.addEventListener('change', filterAndSortProducts);
+}
 
 // --- Sell Form & Image Uploader Event Listeners ---
 const uploader = document.getElementById('image-uploader');
@@ -270,85 +295,87 @@ function handleFileChange(files: FileList | File[] | null) {
   if (rejected.length) showMessage(rejected.join(' '));
 }
 
-function renderListingImagePreviews() {
+function clearListingImageSelection() {
+  selectedListingImages = [];
   listingPreviewUrls.forEach(url => URL.revokeObjectURL(url));
   listingPreviewUrls = [];
-  const wrapper = document.getElementById('image-preview');
-  const grid = document.getElementById('image-preview-grid');
-  const nameDisplay = document.getElementById('file-name-display');
-  grid.replaceChildren();
-  if (!selectedListingImages.length) {
-    wrapper.classList.add('hidden');
-    nameDisplay.textContent = '';
+  renderListingImagePreviews();
+}
+
+function removeSelectedListingImage(indexToRemove: number) {
+  if (indexToRemove < 0 || indexToRemove >= selectedListingImages.length) return;
+  selectedListingImages.splice(indexToRemove, 1);
+  if (listingPreviewUrls[indexToRemove]) {
+    URL.revokeObjectURL(listingPreviewUrls[indexToRemove]);
+    listingPreviewUrls.splice(indexToRemove, 1);
+  }
+  renderListingImagePreviews();
+}
+
+function renderListingImagePreviews() {
+  const preview = document.getElementById('image-preview');
+  const previewGrid = document.getElementById('image-preview-grid');
+  const count = document.getElementById('file-name-display');
+  previewGrid.replaceChildren();
+
+  if (selectedListingImages.length === 0) {
+    preview.classList.add('hidden');
+    count.textContent = '';
     return;
   }
-  wrapper.classList.remove('hidden');
-  nameDisplay.textContent = `${selectedListingImages.length} image${selectedListingImages.length === 1 ? '' : 's'} selected`;
+
+  while (listingPreviewUrls.length < selectedListingImages.length) {
+    const nextIndex = listingPreviewUrls.length;
+    listingPreviewUrls.push(URL.createObjectURL(selectedListingImages[nextIndex]));
+  }
+  while (listingPreviewUrls.length > selectedListingImages.length) {
+    const url = listingPreviewUrls.pop();
+    if (url) URL.revokeObjectURL(url);
+  }
+
   selectedListingImages.forEach((file, index) => {
     const card = document.createElement('div');
     card.className = 'image-preview-card';
     const image = document.createElement('img');
-    image.src = URL.createObjectURL(file);
-    image.alt = file.name;
-    listingPreviewUrls.push(image.src);
-    card.appendChild(image);
-    const name = document.createElement('span');
-    name.className = 'image-preview-name';
-    name.textContent = file.name;
-    card.appendChild(name);
-    if (index === 0) {
-      const cover = document.createElement('span');
-      cover.className = 'image-preview-cover';
-      cover.textContent = 'COVER';
-      card.appendChild(cover);
-    }
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'image-preview-remove';
-    remove.textContent = '\u00d7';
-    remove.title = `Remove ${file.name}`;
-    remove.setAttribute('aria-label', `Remove ${file.name}`);
-    remove.addEventListener('click', () => {
-      selectedListingImages.splice(index, 1);
-      renderListingImagePreviews();
+    image.src = listingPreviewUrls[index];
+    image.alt = `Selected upload ${index + 1}`;
+    const badge = document.createElement('span');
+    badge.className = 'image-preview-badge';
+    badge.textContent = index === 0 ? 'Cover' : `${index + 1}`;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'image-preview-remove';
+    removeBtn.setAttribute('aria-label', `Remove ${file.name}`);
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeSelectedListingImage(index);
     });
-    card.appendChild(remove);
-    grid.appendChild(card);
+
+    card.append(image, badge, removeBtn);
+    previewGrid.appendChild(card);
   });
+
+  preview.classList.remove('hidden');
+  count.textContent = `${selectedListingImages.length} image${selectedListingImages.length === 1 ? '' : 's'} selected (${selectedListingImages[0].name}${selectedListingImages.length > 1 ? ` +${selectedListingImages.length - 1} more` : ''})`;
 }
 
-function clearListingImageSelection() {
-  selectedListingImages = [];
-  fileInput.value = '';
-  renderListingImagePreviews();
-}
 function getListingErrorMessage(error) {
-  if (error.code === 'USER_REJECTED_TRANSACTION' || error.code === 4001) {
-    return "Transaction was cancelled in your wallet.";
+  if (!error) return "Could not create listing. Please try again.";
+  if (error.code === 'ACTION_REJECTED' || error.code === 4001
+    || error.message?.includes('user rejected')
+    || error.message?.includes('User rejected')) {
+    return "Listing was cancelled in your wallet.";
   }
-  if (error.code === 'INSUFFICIENT_FUNDS' || /insufficient funds/i.test(error.message || '')) {
-    return "Your wallet does not have enough Sepolia ETH to pay the transaction fee.";
+  if (error.code === 'NETWORK_ERROR') {
+    return "Network error. Check your connection to Sepolia and retry.";
   }
-
-  const reason = [
-    error.reason,
-    error.error?.reason,
-    error.data?.message,
-    error.error?.data?.message,
-    error.error?.message,
-    error.message
-  ].find((candidate) => typeof candidate === 'string'
-    && candidate.trim()
-    && !/^transaction failed\.?$/i.test(candidate.trim()));
-  if (reason) {
-    return reason.trim().replace(/^execution reverted:\s*/i, '');
-  }
-
-  const transactionHash = error.transactionHash || error.receipt?.transactionHash;
-  if (transactionHash) {
-    return `Listing transaction failed. View the reverted transaction on Sepolia Etherscan: https://sepolia.etherscan.io/tx/${transactionHash}`;
-  }
-  return "Listing transaction failed. Confirm your wallet is on Sepolia and has enough Sepolia ETH for gas, then check the browser console for details.";
+  return error.shortMessage
+    || error.reason
+    || error.error?.message
+    || error.message
+    || "Could not create listing. Please check the console for details.";
 }
 
 async function createListingFormHandler(e) {
@@ -423,13 +450,29 @@ async function createListingFormHandler(e) {
       throw new Error('The listing was confirmed, but its product ID could not be read from the transaction.');
     }
 
-      await window.PeerLoopApi.listingMetadata.saveCategory(
-        listingEvent.args.id.toString(),
-        category,
-        'Could not save the selected category.'
-      );
+    await window.PeerLoopApi.listingMetadata.saveCategory(
+      listingEvent.args.id.toString(),
+      category,
+      'Could not save the selected category.'
+    );
 
     showMessage("Product listed successfully!");
+
+    // Optimistic state reflection: Instantly show new product without waiting!
+    const newProduct = {
+      _id: listingEvent.args.id.toString(),
+      name,
+      description,
+      price: priceString,
+      seller: currentUser.walletAddress,
+      imageUrl,
+      category,
+      isSold: false
+    };
+    allProducts.unshift(newProduct);
+    if (window.PeerLoopAccount) {
+      window.PeerLoopAccount.updateListings(allProducts);
+    }
     
     document.getElementById("create-listing-form").reset();
     clearListingImageSelection();
@@ -459,15 +502,24 @@ async function renderSellerProfile(sellerId, sellerName) {
   heading.textContent = `Gears from ${sellerName}`;
   showSection('seller-profile-tab');
   
+  if (allProducts.length > 0) {
+    const sellerProducts = allProducts.filter(p => p.seller.toLowerCase() === sellerId.toLowerCase());
+    grid.innerHTML = '';
+    if (sellerProducts.length === 0) {
+      grid.innerHTML = `<p class="text-center text-gray-500 col-span-full">No items.</p>`;
+    } else {
+      sellerProducts.forEach(product => grid.appendChild(createProductCard(product)));
+    }
+    return;
+  }
+
   const loadingMessage = document.createElement('p');
   loadingMessage.className = 'text-center text-gray-500 col-span-full';
   loadingMessage.textContent = 'No items.';
   grid.replaceChildren(loadingMessage);
   
   try {
-    // FIX: Use up-to-date products fetched from the blockchain
     await fetchProducts(false); 
-    
     const sellerProducts = allProducts.filter(p => p.seller.toLowerCase() === sellerId.toLowerCase());
     grid.innerHTML = '';
     if (sellerProducts.length === 0) {
