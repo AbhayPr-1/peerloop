@@ -57,7 +57,8 @@ test('listing metadata routes preserve category reads and owner-verified writes'
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(authToken ? { 'x-auth-token': authToken } : {})
+      Origin: 'http://localhost:3000',
+      ...(authToken ? { Cookie: `peerloop_session=${authToken}` } : {})
     },
     body: JSON.stringify(body)
   });

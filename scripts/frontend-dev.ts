@@ -24,6 +24,28 @@ const MIME_TYPES = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2'
 };
+const apiConnectSources = new Set(["'self'", 'http://localhost:5001', 'ws://localhost:5001',
+  'https://ethereum-sepolia-rpc.publicnode.com', 'https://sepolia.gateway.tenderly.co',
+  'https://eth-sepolia.blockscout.com']);
+try {
+  if (process.env.PEERLOOP_API_URL) {
+    const api = new URL(process.env.PEERLOOP_API_URL);
+    apiConnectSources.add(api.origin);
+    apiConnectSources.add(`${api.protocol === 'https:' ? 'wss:' : 'ws:'}//${api.host}`);
+  }
+} catch (_) {
+  console.error('PEERLOOP_API_URL is not a valid URL; the frontend will use its same-origin default.');
+}
+function setSecurityHeaders(response, request) {
+  const socketScheme = process.env.NODE_ENV === 'production' ? 'wss:' : 'ws:';
+  const connectSources = new Set(apiConnectSources);
+  if (request.headers.host) connectSources.add(`${socketScheme}//${request.headers.host}`);
+  response.setHeader('Content-Security-Policy', `default-src 'self'; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; connect-src ${[...connectSources].join(' ')}; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`);
+  response.setHeader('X-Frame-Options', 'DENY');
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+}
 const liveReloadClients = new Set<import('http').ServerResponse>();
 let reloadTimer = null;
 
@@ -72,6 +94,7 @@ const server = http.createServer((request, response) => {
   if (pathname === '/' || pathname === '/index.html' || pathname === '/marketplace' || pathname === '/sell') {
     if (isDevelopment) delete require.cache[documentModulePath];
     const { renderDocument } = require(documentModulePath);
+    setSecurityHeaders(response, request);
     response.writeHead(200, {
       'Cache-Control': 'no-store',
       'Content-Type': 'text/html; charset=utf-8'
@@ -107,6 +130,7 @@ const server = http.createServer((request, response) => {
         'Content-Type': MIME_TYPES[extension] || 'application/octet-stream'
       };
 
+      setSecurityHeaders(response, request);
       response.writeHead(200, headers).end(contents);
     });
   });

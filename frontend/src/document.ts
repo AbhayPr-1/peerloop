@@ -51,10 +51,10 @@ export function renderDocument(apiUrl?: string, liveReload = false): string {
     .join('\n');
   const bodyClass = body[1].match(/\bclass="([^"]*)"/i)?.[1] || '';
   const apiConfig = apiUrl
-    ? `<script>window.PEERLOOP_API_URL = ${JSON.stringify(apiUrl)};</script>`
+    ? `<meta name="peerloop-api-url" content="${String(apiUrl).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char)}">`
     : '';
   const reloadScript = liveReload
-    ? `<script>(() => { const events = new EventSource('/__live-reload'); events.addEventListener('reload', () => window.location.reload()); })();</script>`
+    ? '<script src="/dist/js/liveReload.js"></script>'
     : '';
   return `<!DOCTYPE html>
 <html lang="en">

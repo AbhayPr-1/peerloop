@@ -1,11 +1,16 @@
 // frontend/js/cart.js
 let userCart = [];
+let activeCartUserId = null;
 
 function fetchCart() {
   if (currentUser) {
-    userCart = JSON.parse(localStorage.getItem(`peerloop_cart_${currentUser.id}`) || '[]');
+    if (activeCartUserId !== currentUser.id) {
+      userCart = [];
+      activeCartUserId = currentUser.id;
+    }
   } else {
     userCart = [];
+    activeCartUserId = null;
   }
   updateCartCount();
   if (!document.getElementById('cart-tab').classList.contains('hidden')) {
@@ -13,25 +18,32 @@ function fetchCart() {
   }
 }
 
+function clearUserCart() {
+  userCart = [];
+  activeCartUserId = null;
+  updateCartCount();
+}
+
+(window as any).clearUserCart = clearUserCart;
+
 async function addToCart(product, buttonElement) {
   if (!currentUser) return showMessage("You must be logged in.");
-  fetchCart(); 
+  fetchCart();
   const originalButtonText = buttonElement.innerHTML;
   buttonElement.disabled = true;
 
   try {
     if (userCart.find(item => item._id === product._id)) {
-        throw new Error("Product already in cart");
+      throw new Error("Product already in cart");
     }
     userCart.push(product);
-    localStorage.setItem(`peerloop_cart_${currentUser.id}`, JSON.stringify(userCart));
     updateCartCount();
     buttonElement.innerHTML = 'Added ✓';
     buttonElement.classList.add('added-to-cart');
     setTimeout(() => {
-        buttonElement.innerHTML = originalButtonText;
-        buttonElement.classList.remove('added-to-cart');
-        buttonElement.disabled = false;
+      buttonElement.innerHTML = originalButtonText;
+      buttonElement.classList.remove('added-to-cart');
+      buttonElement.disabled = false;
     }, 2000);
   } catch (error) {
     showMessage(error.message);
@@ -80,9 +92,7 @@ function renderCart() {
 async function removeFromCart(productId, showMsg = true) {
   if (!currentUser) return;
   try {
-    fetchCart(); 
-    userCart = userCart.filter(item => item._id !== productId); 
-    localStorage.setItem(`peerloop_cart_${currentUser.id}`, JSON.stringify(userCart)); 
+    userCart = userCart.filter(item => item._id !== productId);
     if (showMsg) showMessage("Item removed from cart.");
     renderCart();
     updateCartCount();
@@ -94,38 +104,30 @@ async function removeFromCart(productId, showMsg = true) {
 async function checkout(buttonElement) {
   if (userCart.length === 0) return showMessage('Your cart is empty.');
   if (!marketplaceContract || !signer) return showMessage("Connecting to contract... Please log in again.");
-    
+
   const total = userCart.reduce((sum, item) => sum + item.price, 0);
   const message = `Buy <strong>${userCart.length} item(s)</strong> for a total of <strong>${total.toFixed(4)} ETH</strong>? Each payment will be held in escrow until you release it or request a refund.`;
 
   showConfirmationModal(message, async () => {
     showMessage("Please approve each transaction in your wallet.");
     const itemsToCheckout = [...userCart];
-    
-    // Disable checkout button during the multi-transaction process
     if (buttonElement) setButtonLoading(buttonElement, true, 'Processing...');
-      
+
     try {
-        for (const item of itemsToCheckout) {
-          try {
-            // Use buyNow, which handles its own transaction loading/messages
-            await buyNow(item, null); 
-            removeFromCart(item._id, false); // Remove from cart *after* successful purchase
-          } catch (e) {
-            // Note: buyNow already shows a message on error
-            console.error(`Skipping ${item.name} due to transaction failure.`, e);
-          }
+      for (const item of itemsToCheckout) {
+        try {
+          await buyNow(item, null);
+          removeFromCart(item._id, false);
+        } catch (e) {
+          console.error(`Skipping ${item.name} due to transaction failure.`, e);
         }
-        
-        // Final state update
-        await fetchCart(); 
-        showMessage("Checkout process finished.");
-        
+      }
+      await fetchCart();
+      showMessage("Checkout process finished.");
     } catch (error) {
-        // This catch block would only be hit if something failed outside of the loop, which is rare.
-        showMessage(error.message || "An unexpected error occurred during checkout.");
+      showMessage(error.message || "An unexpected error occurred during checkout.");
     } finally {
-        if (buttonElement) setButtonLoading(buttonElement, false);
+      if (buttonElement) setButtonLoading(buttonElement, false);
     }
   });
 }
@@ -141,17 +143,16 @@ function updateCartCount() {
 }
 
 function handleRealTimeCartRemoval(productId, productName) {
-    if (!currentUser) return;
-    fetchCart(); 
-    const removedItemIndex = userCart.findIndex(item => item._id === productId);
-    if (removedItemIndex > -1) {
-        const name = productName || userCart[removedItemIndex].name;
-        userCart.splice(removedItemIndex, 1);
-        localStorage.setItem(`peerloop_cart_${currentUser.id}`, JSON.stringify(userCart)); 
-        updateCartCount();
-        if (!document.getElementById('cart-tab').classList.contains('hidden')) {
-            renderCart();
-        }
-        showMessage(`'${name}' was removed from your cart as it's no longer available.`, 4000);
+  if (!currentUser) return;
+  fetchCart();
+  const removedItemIndex = userCart.findIndex(item => item._id === productId);
+  if (removedItemIndex > -1) {
+    const name = productName || userCart[removedItemIndex].name;
+    userCart.splice(removedItemIndex, 1);
+    updateCartCount();
+    if (!document.getElementById('cart-tab').classList.contains('hidden')) {
+      renderCart();
     }
+    showMessage(`'${name}' was removed from your cart as it's no longer available.`, 4000);
+  }
 }

@@ -58,7 +58,7 @@ Set the following values in the root `.env` file:
 | `PINATA_JWT` | Optional Pinata credential for IPFS uploads. |
 
 Never commit `.env` files or share private keys. They are excluded by `.gitignore`.
-For production, serve the frontend over HTTPS. By default, the frontend uses its own origin for API and Socket.IO requests, so configure a reverse proxy to forward `/api` and `/socket.io` to the backend. If the backend has a separate HTTPS origin, set `window.PEERLOOP_API_URL` before the frontend scripts load. Configure the backend's `APP_ORIGIN` to match the exact frontend origin.
+For production, serve the frontend over HTTPS. By default, the frontend uses its own origin for API and Socket.IO requests, so configure a reverse proxy to forward `/api` and `/socket.io` to the backend. If the backend has a separate HTTPS origin, set `PEERLOOP_API_URL` in the frontend server environment so the strict Content Security Policy permits that exact API and Socket.IO origin. Configure the backend's `APP_ORIGIN` to the exact frontend origin(s); cookie-authenticated writes and sign-in requests require a matching `Origin` header.
 
 ## Smart contract
 

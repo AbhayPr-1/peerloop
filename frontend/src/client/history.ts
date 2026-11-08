@@ -22,6 +22,7 @@
   const RPC_TOPICS = [[...HISTORY_TOPICS]];
   const WALLET_HISTORY_CACHE_PREFIX = `peerloop:wallet-history:v1:${marketplaceAddress.toLowerCase()}:`;
   const WALLET_HISTORY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+  const walletHistoryCache = new Map();
   let loadPromise = null;
   let cachedEvents = null;
   let cachedEventsUntil = 0;
@@ -29,28 +30,22 @@
   const confirmedEscrowStates = new Map();
 
   function readWalletHistoryCache(walletAddress) {
-    try {
-      const cached = JSON.parse(localStorage.getItem(`${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`) || 'null');
-      if (!cached || !Number.isFinite(cached.savedAt) || cached.savedAt > Date.now()
-        || Date.now() - cached.savedAt > WALLET_HISTORY_CACHE_MAX_AGE
-        || !Array.isArray(cached.history?.purchased) || !Array.isArray(cached.history?.sold)) {
-        return null;
-      }
-      return cached.history;
-    } catch (error) {
-      console.warn('Could not read cached wallet history:', error.message);
+    const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
+    const cached = walletHistoryCache.get(cacheKey);
+    if (!cached || !Number.isFinite(cached.savedAt) || cached.savedAt > Date.now()
+      || Date.now() - cached.savedAt > WALLET_HISTORY_CACHE_MAX_AGE
+      || !Array.isArray(cached.history?.purchased) || !Array.isArray(cached.history?.sold)) {
+      walletHistoryCache.delete(cacheKey);
       return null;
     }
+    return cached.history;
   }
 
   function saveWalletHistoryCache(walletAddress, history) {
-    try {
-      localStorage.setItem(`${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`, JSON.stringify({
-        savedAt: Date.now(),
-        history
-      }));
-    } catch (error) {
-      console.warn('Could not save wallet history cache:', error.message);
+    const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
+    walletHistoryCache.set(cacheKey, { savedAt: Date.now(), history });
+    if (walletHistoryCache.size > 20) {
+      walletHistoryCache.delete(walletHistoryCache.keys().next().value);
     }
   }
 
@@ -319,6 +314,12 @@
   global.getCachedWalletTransactionHistory = function (walletAddress) {
     if (!ethers.utils.isAddress(walletAddress)) return null;
     return readWalletHistoryCache(walletAddress);
+  };
+
+  global.clearWalletTransactionHistoryCache = function (walletAddress) {
+    if (ethers.utils.isAddress(walletAddress)) {
+      walletHistoryCache.delete(`${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`);
+    }
   };
 
   global.enrichWalletTransactionHistory = async function (walletAddress, walletHistory) {

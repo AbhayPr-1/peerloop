@@ -68,9 +68,22 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
   const address = server.address();
   assert.ok(address && typeof address !== 'string');
   const baseUrl = `http://127.0.0.1:${address.port}/api/auth`;
+  const originalFetch = globalThis.fetch;
+  const appFetch = (input: string | URL, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers);
+    headers.set('Origin', 'http://localhost:3000');
+    return originalFetch(input, { ...init, headers });
+  };
 
   try {
-    const invalidAddress = await fetch(`${baseUrl}/nonce`, {
+    const originlessRequest = await originalFetch(`${baseUrl}/nonce`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress })
+    });
+    assert.equal(originlessRequest.status, 403);
+
+    const invalidAddress = await appFetch(`${baseUrl}/nonce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress: 'invalid' })
@@ -78,7 +91,7 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
     assert.equal(invalidAddress.status, 400);
     assert.equal((await invalidAddress.json()).msg, 'A valid wallet address is required.');
 
-    const challengeResponse = await fetch(`${baseUrl}/nonce`, {
+    const challengeResponse = await appFetch(`${baseUrl}/nonce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress })
@@ -90,14 +103,14 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
     assert.match(challenge.message, /Origin: http:\/\/localhost:3000/);
     assert.match(challenge.message, new RegExp(`Address: ${walletAddress}`));
 
-    const missingSignature = await fetch(`${baseUrl}/metamask`, {
+    const missingSignature = await appFetch(`${baseUrl}/metamask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress })
     });
     assert.equal(missingSignature.status, 400);
 
-    const invalidSignature = await fetch(`${baseUrl}/metamask`, {
+    const invalidSignature = await appFetch(`${baseUrl}/metamask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, signature: 'invalid' })
@@ -105,7 +118,7 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
     assert.equal(invalidSignature.status, 401);
     assert.equal((await invalidSignature.json()).msg, 'Wallet signature is not valid.');
 
-    const wrongWalletSignature = await fetch(`${baseUrl}/metamask`, {
+    const wrongWalletSignature = await appFetch(`${baseUrl}/metamask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, signature: 'wrong-wallet' })
@@ -113,14 +126,23 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
     assert.equal(wrongWalletSignature.status, 401);
     assert.equal((await wrongWalletSignature.json()).msg, 'Wallet signature does not match the requested address.');
 
-    const loginResponse = await fetch(`${baseUrl}/metamask`, {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const loginResponse = await appFetch(`${baseUrl}/metamask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, signature: 'valid' })
+    }).finally(() => {
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalNodeEnv;
     });
     assert.equal(loginResponse.status, 200);
+    const sessionCookie = loginResponse.headers.get('set-cookie') || '';
+    assert.match(sessionCookie, /__Host-peerloop_session=test-token/);
+    assert.match(sessionCookie, /HttpOnly/i);
+    assert.match(sessionCookie, /Secure/i);
+    assert.match(sessionCookie, /SameSite=None/i);
     assert.deepEqual(await loginResponse.json(), {
-      token: 'test-token',
       user: {
         id: '1',
         name: 'User-000000-test-nonce-1',
@@ -128,7 +150,7 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
       }
     });
 
-    const replayResponse = await fetch(`${baseUrl}/metamask`, {
+    const replayResponse = await appFetch(`${baseUrl}/metamask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, signature: 'valid' })
@@ -136,13 +158,13 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
     assert.equal(replayResponse.status, 401);
     assert.equal((await replayResponse.json()).msg, 'Sign-in challenge expired. Please try again.');
 
-    await fetch(`${baseUrl}/nonce`, {
+    await appFetch(`${baseUrl}/nonce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress })
     });
     currentTime = new Date(currentTime.getTime() + 5 * 60 * 1000);
-    const expiredChallenge = await fetch(`${baseUrl}/metamask`, {
+    const expiredChallenge = await appFetch(`${baseUrl}/metamask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, signature: 'valid' })
@@ -150,19 +172,20 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
     assert.equal(expiredChallenge.status, 401);
 
     for (let request = 0; request < 7; request += 1) {
-      await fetch(`${baseUrl}/nonce`, {
+      await appFetch(`${baseUrl}/nonce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress })
       });
     }
-    const rateLimited = await fetch(`${baseUrl}/nonce`, {
+    const rateLimited = await appFetch(`${baseUrl}/nonce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress })
     });
     assert.equal(rateLimited.status, 429);
   } finally {
+    globalThis.fetch = originalFetch;
     server.close();
     await once(server, 'close');
   }

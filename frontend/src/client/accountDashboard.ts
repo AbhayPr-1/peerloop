@@ -377,9 +377,9 @@
         try {
           const response = await fetch(`${API_URL}/api/listing-metadata`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
-              'Content-Type': 'application/json',
-              'x-auth-token': localStorage.getItem('token')
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({ productId: product._id, category })
           });

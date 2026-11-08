@@ -52,15 +52,14 @@ async function handleMetaMaskLogin(buttonElement) {
 
         const signature = await signer.signMessage(challenge.message);
         const response = await fetch(`${API_URL}/api/auth/metamask`, {
-            method: 'POST',
+          method: 'POST',
+          credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ walletAddress, signature }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.msg || 'Login failed');
         
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('username', data.user.name);
         currentUser = { 
           id: data.user.id, 
           name: data.user.name, 

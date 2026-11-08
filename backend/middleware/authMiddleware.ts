@@ -3,9 +3,17 @@ const jwt = require('jsonwebtoken');
 const config = require('../config').default;
 
 module.exports = function(req, res, next) {
-  const authorization = req.header('authorization');
-  const bearerToken = authorization && authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : null;
-  const token = req.header('x-auth-token') || bearerToken;
+  const production = process.env.NODE_ENV === 'production';
+  const cookieName = production ? '__Host-peerloop_session' : 'peerloop_session';
+  const cookieValue = req.headers.cookie?.split(';').map((part) => part.trim())
+    .find((part) => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
+  let cookieToken: string | null = null;
+  try {
+    cookieToken = cookieValue ? decodeURIComponent(cookieValue) : null;
+  } catch {
+    cookieToken = null;
+  }
+  const token = cookieToken;
 
   if (!token) {
     return res.status(401).json({ msg: 'No token, authorization denied' });
@@ -17,6 +25,13 @@ module.exports = function(req, res, next) {
   }
 
   try {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      const origin = req.header('origin');
+      const allowedOrigins = config.appOrigin.split(',').map((value) => value.trim()).filter(Boolean);
+      if (!origin || !allowedOrigins.includes(origin)) {
+        return res.status(403).json({ msg: 'Request origin is not allowed.' });
+      }
+    }
     const decoded = jwt.verify(token, jwtSecret);
     if (!decoded || typeof decoded !== 'object' || decoded.authVersion !== 2 || !decoded.user || !decoded.user.id) {
       return res.status(401).json({ msg: 'Please sign in again.' });

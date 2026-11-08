@@ -33,7 +33,17 @@ export function createAuthController(authService: AuthService) {
       try {
         const { walletAddress, signature } = req.body || {};
         const result = await authService.signIn(walletAddress, signature);
-        return res.json(result);
+        const production = process.env.NODE_ENV === 'production';
+        const cookieName = production ? '__Host-peerloop_session' : 'peerloop_session';
+        res.cookie(cookieName, result.token, {
+          httpOnly: true,
+          secure: production,
+          sameSite: production ? 'none' : 'lax',
+          path: '/',
+          maxAge: 24 * 60 * 60 * 1000
+        });
+        res.set('Cache-Control', 'no-store');
+        return res.json({ user: result.user });
       } catch (error) {
         if (error instanceof AuthServiceError) {
           if (error.logMessage) console.error(error.logMessage);

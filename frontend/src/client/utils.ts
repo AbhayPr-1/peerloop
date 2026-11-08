@@ -1,6 +1,7 @@
 // frontend/js/utils.js
 const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const API_URL = window.PEERLOOP_API_URL
+const configuredApiUrl = document.querySelector('meta[name="peerloop-api-url"]')?.getAttribute('content');
+const API_URL = configuredApiUrl || window.PEERLOOP_API_URL
   || (isLocalHost ? `http://${window.location.hostname}:5001` : window.location.origin);
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -185,34 +186,47 @@ function formatAddress(address) {
 // *** END NEW FUNCTION ***
 
 
-function checkAuthState() {
-  const token = localStorage.getItem('token');
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.authVersion === 2 && payload.exp * 1000 > Date.now()) {
-        currentUser = { 
-          id: payload.user.id, 
-          name: payload.user.name, 
-          walletAddress: payload.user.walletAddress 
-        };
-        if(!currentUser.name) currentUser.name = localStorage.getItem('username');
-      } else {
-        logout();
-      }
-    } catch (e) {
-      console.error("Auth check failed:", e);
-      logout();
+function clearLegacyPeerLoopStorage() {
+  try {
+    const keysToRemove = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && (['token', 'username', 'theme'].includes(key)
+        || key.startsWith('peerloop_cart_')
+        || key.startsWith('peerloop:wallet-history:'))) keysToRemove.push(key);
     }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+  } catch (error) {
+    console.warn('Could not remove legacy PeerLoop browser data:', error);
   }
 }
 
-function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('username');
-  if (currentUser) {
-    localStorage.removeItem(`peerloop_cart_${currentUser.id}`);
+async function checkAuthState() {
+  clearLegacyPeerLoopStorage();
+  try {
+    const response = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include', cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json();
+    if (data.user && data.user.id && data.user.walletAddress) {
+      currentUser = {
+        id: String(data.user.id),
+        name: String(data.user.name || ''),
+        walletAddress: String(data.user.walletAddress)
+      };
+    }
+  } catch (error) {
+    console.warn('Could not restore the server session:', error);
   }
+}
+
+async function logout() {
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+  } catch (error) {
+    console.warn('Could not clear the server session:', error);
+  }
+  if (currentUser) (window as any).clearWalletTransactionHistoryCache?.(currentUser.walletAddress);
+  (window as any).clearUserCart?.();
   currentUser = null;
   renderUI();
   showMessage("You have been logged out.");

@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn("Socket.IO client library not found. Real-time updates disabled.");
   }
   
-  checkAuthState();
+  await checkAuthState();
   renderUI();
 
   initializeModalListeners();
@@ -334,7 +334,7 @@ async function createListingFormHandler(e) {
       formData.append('productImage', imagesToUpload[index]);
       const uploadResponse = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
-        headers: { 'x-auth-token': localStorage.getItem('token') },
+        credentials: 'include',
         body: formData
       });
       if (!uploadResponse.ok) {
@@ -372,11 +372,11 @@ async function createListingFormHandler(e) {
       throw new Error('The listing was confirmed, but its product ID could not be read from the transaction.');
     }
 
-    const categoryResponse = await fetch(`${API_URL}/api/listing-metadata`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-auth-token': localStorage.getItem('token')
+      const categoryResponse = await fetch(`${API_URL}/api/listing-metadata`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ productId: listingEvent.args.id.toString(), category })
     });

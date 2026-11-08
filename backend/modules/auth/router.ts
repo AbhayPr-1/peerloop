@@ -3,6 +3,9 @@ import type { Request, Response, NextFunction } from 'express';
 import { createAuthController } from './authController';
 import type { createAuthService } from './authService';
 
+const auth = require('../../middleware/authMiddleware');
+const config = require('../../config').default;
+
 const RATE_WINDOW_MS = 60 * 1000;
 const MAX_CHALLENGES_PER_WINDOW = 10;
 const MAX_RATE_LIMIT_ENTRIES = 5000;
@@ -57,7 +60,31 @@ export function createAuthRouter(authService: ReturnType<typeof createAuthServic
     return next();
   }
 
-  router.post('/nonce', limitChallengeRequests, controller.createChallenge);
-  router.post('/metamask', limitSignInRequests, controller.signIn);
+  function requireAllowedOrigin(req: Request, res: Response, next: NextFunction) {
+    const origin = req.header('origin');
+    const allowedOrigins = config.appOrigin.split(',').map((value) => value.trim()).filter(Boolean);
+    if (!origin || !allowedOrigins.includes(origin)) {
+      return res.status(403).json({ msg: 'Request origin is not allowed.' });
+    }
+    return next();
+  }
+
+  router.post('/nonce', requireAllowedOrigin, limitChallengeRequests, controller.createChallenge);
+  router.post('/metamask', requireAllowedOrigin, limitSignInRequests, controller.signIn);
+  router.get('/session', auth, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    return res.json({ user: req.user });
+  });
+  router.post('/logout', auth, (_req, res) => {
+    const production = process.env.NODE_ENV === 'production';
+    res.clearCookie(production ? '__Host-peerloop_session' : 'peerloop_session', {
+      httpOnly: true,
+      secure: production,
+      sameSite: production ? 'none' : 'lax',
+      path: '/'
+    });
+    res.set('Cache-Control', 'no-store');
+    return res.status(204).end();
+  });
   return router;
 }

@@ -52,11 +52,23 @@ test('upload module validates image signatures and preserves the authenticated u
     const unauthorized = await fetch(url, { method: 'POST' });
     assert.equal(unauthorized.status, 401);
 
+    const legacyHeader = await fetch(url, {
+      method: 'POST',
+      headers: { 'x-auth-token': token, Origin: 'http://localhost:3000' }
+    });
+    assert.equal(legacyHeader.status, 401);
+
+    const crossOriginWrite = await fetch(url, {
+      method: 'POST',
+      headers: { Cookie: `peerloop_session=${token}`, Origin: 'https://attacker.example' }
+    });
+    assert.equal(crossOriginWrite.status, 403);
+
     const invalidForm = new FormData();
     invalidForm.append('productImage', new Blob(['not a png'], { type: 'image/png' }), 'bad.png');
     const invalidImage = await fetch(url, {
       method: 'POST',
-      headers: { 'x-auth-token': token },
+      headers: { Cookie: `peerloop_session=${token}`, Origin: 'http://localhost:3000' },
       body: invalidForm
     });
     assert.equal(invalidImage.status, 400);
@@ -67,7 +79,7 @@ test('upload module validates image signatures and preserves the authenticated u
     validForm.append('productImage', new Blob([imageBytes], { type: 'image/png' }), 'listing.png');
     const uploadedResponse = await fetch(url, {
       method: 'POST',
-      headers: { 'x-auth-token': token },
+      headers: { Cookie: `peerloop_session=${token}`, Origin: 'http://localhost:3000' },
       body: validForm
     });
     assert.equal(uploadedResponse.status, 200);
