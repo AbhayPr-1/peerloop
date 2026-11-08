@@ -119,15 +119,7 @@ async function loadProductsFromChain() {
     const productsFromChain = await readMarketplaceProducts();
     let categories = {};
     try {
-        const categoryResponse = await fetchWithTimeout(
-            `${API_URL}/api/listing-metadata`,
-            { cache: 'no-store' },
-            1500
-        );
-        if (!categoryResponse.ok) {
-            throw new Error(`Category service returned HTTP ${categoryResponse.status}.`);
-        }
-        const categoryData = await categoryResponse.json();
+        const categoryData = await window.PeerLoopApi.listingMetadata.getAll(1500);
         if (!categoryData || typeof categoryData !== 'object' || Array.isArray(categoryData)) {
             throw new Error('Category service returned invalid data.');
         }

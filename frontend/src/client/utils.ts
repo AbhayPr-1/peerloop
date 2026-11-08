@@ -1,8 +1,4 @@
 // frontend/js/utils.js
-const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const configuredApiUrl = document.querySelector('meta[name="peerloop-api-url"]')?.getAttribute('content');
-const API_URL = configuredApiUrl || window.PEERLOOP_API_URL
-  || (isLocalHost ? `http://${window.location.hostname}:5001` : window.location.origin);
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -204,9 +200,8 @@ function clearLegacyPeerLoopStorage() {
 async function checkAuthState() {
   clearLegacyPeerLoopStorage();
   try {
-    const response = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include', cache: 'no-store' });
-    if (!response.ok) return;
-    const data = await response.json();
+    const data = await window.PeerLoopApi.auth.getSession();
+    if (!data) return;
     if (data.user && data.user.id && data.user.walletAddress) {
       currentUser = {
         id: String(data.user.id),
@@ -221,7 +216,7 @@ async function checkAuthState() {
 
 async function logout() {
   try {
-    await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    await window.PeerLoopApi.auth.logout();
   } catch (error) {
     console.warn('Could not clear the server session:', error);
   }

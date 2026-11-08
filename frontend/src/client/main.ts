@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Socket.IO Configuration (guarded if socket.io is unavailable)
   let socket = null;
   if (typeof io !== 'undefined') {
-    socket = io(API_URL, {
+    socket = io(window.PeerLoopApi.baseUrl, {
       reconnection: true,             // Enable reconnection attempts
       reconnectionAttempts: Infinity,
       reconnectionDelay: 500,         
@@ -330,25 +330,7 @@ async function createListingFormHandler(e) {
     const imageUrls = [];
     for (let index = 0; index < imagesToUpload.length; index++) {
       setButtonLoading(buttonElement, true, `Uploading image ${index + 1} of ${imagesToUpload.length}...`);
-      const formData = new FormData();
-      formData.append('productImage', imagesToUpload[index]);
-      const uploadResponse = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-      if (!uploadResponse.ok) {
-        let errorMsg = 'Image upload failed.';
-        try {
-          const err = await uploadResponse.json();
-          errorMsg = err.msg || err.error || errorMsg;
-        } catch (_) {
-          const text = await uploadResponse.text();
-          if (text) errorMsg = text;
-        }
-        throw new Error(errorMsg);
-      }
-      const uploadData = await uploadResponse.json();
+      const uploadData = await window.PeerLoopApi.uploads.uploadImage(imagesToUpload[index]);
       if (!uploadData.imageUrl) throw new Error(`Image ${index + 1} did not return a usable URL.`);
       imageUrls.push(uploadData.imageUrl);
     }
@@ -372,22 +354,11 @@ async function createListingFormHandler(e) {
       throw new Error('The listing was confirmed, but its product ID could not be read from the transaction.');
     }
 
-      const categoryResponse = await fetch(`${API_URL}/api/listing-metadata`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ productId: listingEvent.args.id.toString(), category })
-    });
-    if (!categoryResponse.ok) {
-      let errorMessage = 'Could not save the selected category.';
-      try {
-        const errorData = await categoryResponse.json();
-        errorMessage = errorData.msg || errorMessage;
-      } catch (_) {}
-      throw new Error(errorMessage);
-    }
+      await window.PeerLoopApi.listingMetadata.saveCategory(
+        listingEvent.args.id.toString(),
+        category,
+        'Could not save the selected category.'
+      );
 
     showMessage("Product listed successfully!");
     

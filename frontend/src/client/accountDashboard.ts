@@ -375,18 +375,7 @@
         const category = (card.querySelector('.listing-category-select') as HTMLSelectElement).value;
         setButtonLoading(saveCategoryBtn, true, 'Saving...');
         try {
-          const response = await fetch(`${API_URL}/api/listing-metadata`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ productId: product._id, category })
-          });
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.msg || 'Could not save the category.');
-          }
+          await window.PeerLoopApi.listingMetadata.saveCategory(String(product._id), category);
           product.category = category;
           const currentProduct = allProducts.find(item => item._id === product._id);
           if (currentProduct) currentProduct.category = category;

@@ -42,23 +42,10 @@ async function handleMetaMaskLogin(buttonElement) {
             throw new Error("Could not get wallet address.");
         }
 
-        const challengeResponse = await fetch(`${API_URL}/api/auth/nonce`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ walletAddress }),
-        });
-        const challenge = await challengeResponse.json();
-        if (!challengeResponse.ok) throw new Error(challenge.msg || 'Could not start wallet sign-in');
+        const challenge = await window.PeerLoopApi.auth.createChallenge(walletAddress);
 
         const signature = await signer.signMessage(challenge.message);
-        const response = await fetch(`${API_URL}/api/auth/metamask`, {
-          method: 'POST',
-          credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ walletAddress, signature }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.msg || 'Login failed');
+        const data = await window.PeerLoopApi.auth.signIn(walletAddress, signature);
         
         currentUser = { 
           id: data.user.id, 

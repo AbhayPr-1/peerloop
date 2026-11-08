@@ -1,5 +1,32 @@
+interface PeerLoopApiUser {
+  id: string;
+  name: string;
+  walletAddress: string;
+}
+
+interface PeerLoopApiClient {
+  readonly baseUrl: string;
+  auth: {
+    createChallenge(walletAddress: string): Promise<{ message: string }>;
+    signIn(walletAddress: string, signature: string): Promise<{ user: PeerLoopApiUser }>;
+    getSession(): Promise<{ user?: PeerLoopApiUser } | null>;
+    logout(): Promise<void>;
+  };
+  uploads: {
+    uploadImage(file: File): Promise<{ imageUrl: string; ipfsHash: string }>;
+  };
+  listingMetadata: {
+    getAll(timeoutMs?: number): Promise<Record<string, string>>;
+    saveCategory(productId: string, category: string, fallbackMessage?: string): Promise<{ productId: string; category: string }>;
+  };
+  config: {
+    getRpcUrl(signal?: AbortSignal): Promise<{ rpcUrl?: string }>;
+  };
+}
+
 interface Window {
   PEERLOOP_API_URL?: string;
+  PeerLoopApi: PeerLoopApiClient;
   ethereum?: any;
   WalletDetection: {
     detectWalletProvider(): Promise<{ info: { name: string; uuid: string } | null; provider: any } | null>;

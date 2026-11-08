@@ -1,5 +1,7 @@
 # PeerLoop
 
+See [docs/architecture.md](docs/architecture.md) for the module map, dependency boundaries, and staged refactoring plan.
+
 PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. Users connect a MetaMask wallet to list and buy products. The application also includes a Node.js backend for user sessions, image uploads, and live marketplace updates.
 
 ## How it works
@@ -9,7 +11,7 @@ PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. 
 - Product images are uploaded to Pinata and stored as canonical IPFS URIs; the frontend uses a fast gateway first and falls back to alternate gateways if needed.
 - Marketplace reads race validated Sepolia RPC endpoints so a slow or unavailable endpoint does not block Explore.
 - An Ethers.js listener watches contract events and sends updates to the frontend through Socket.IO.
-- The backend, startup tools, and browser application are written in TypeScript. React mounts the browser UI from a TypeScript-generated document; existing marketplace behaviors are initialized after the React render. Cart data is stored in the browser.
+- The backend, startup tools, and browser application are written in TypeScript. React mounts the browser UI from a TypeScript-generated document. The cart, theme choice, and transaction-history cache are kept in page memory and reset on reload; authentication is maintained by a server-issued HttpOnly cookie.
 - Tailwind utility styles are compiled locally as part of the frontend build; the browser does not load Tailwind from a CDN.
 - The account dashboard is isolated in its own frontend module; profile activity dates come from the corresponding Sepolia block timestamp.
 
@@ -131,7 +133,7 @@ The authored TypeScript is under `backend/`, `scripts/`, `frontend/src/`, and `s
 | `POST` | `/api/upload` | Upload an image to Pinata/IPFS. | Yes |
 | `GET` | `/api/config/rpc-url` | Retrieve the public Sepolia RPC URL. | No |
 
-Listings and purchases are sent directly to the smart contract. Sold History and Purchase History are built from the contract's `ProductSold` and escrow lifecycle events. The cart is stored in browser local storage. The legacy MongoDB product and user route modules are not mounted by the current server.
+Listings and purchases are sent directly to the smart contract. Sold History and Purchase History are built from the contract's `ProductSold` and escrow lifecycle events. Cart contents are page-memory only and do not persist across reloads. The legacy MongoDB product and user route modules are not mounted by the current server.
 
 The contract does not store product categories. The backend persists the selected category as listing metadata after verifying the listing owner on-chain. This means categories require the backend, MongoDB, and a valid `CONTRACT_ADDRESS` and `SEPOLIA_RPC_URL`; metadata is scoped to the deployed contract address.
 
