@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import config from '../config';
 
 export function applySecurityHeaders(_req: Request, res: Response, next: NextFunction) {
   res.setHeader('X-Frame-Options', 'DENY');
@@ -11,7 +12,7 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
 }
 
 export function redirectHttpToHttps(req: Request, res: Response, next: NextFunction) {
-  if (process.env.NODE_ENV !== 'production') return next();
+  if (!config.isProduction) return next();
   if (req.secure || req.headers['x-forwarded-proto'] === 'https'
     || ['localhost', '127.0.0.1', '::1'].includes(req.hostname)) {
     return next();

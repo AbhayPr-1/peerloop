@@ -36,18 +36,18 @@ test('listing metadata routes preserve category reads and owner-verified writes'
     getRpcUrl: () => rpcUrl
   });
 
-  const originalSecret = process.env.JWT_SECRET;
-  process.env.JWT_SECRET = 'listing-metadata-test-secret';
+  const testSecret = 'listing-metadata-test-secret';
   const jwt = require('jsonwebtoken');
   const token = jwt.sign({
     authVersion: 2,
     user: { id: 'user-1', name: 'Test User', walletAddress }
-  }, process.env.JWT_SECRET);
+  }, testSecret);
 
   const express = require('express');
+  const { createAuthMiddleware } = require('../../../../backend/middleware/authMiddleware');
   const app = express();
   app.use(express.json());
-  app.use('/api/listing-metadata', createListingMetadataRouter(service));
+  app.use('/api/listing-metadata', createListingMetadataRouter(service, createAuthMiddleware({ jwtSecret: testSecret })));
   const server = app.listen(0);
   await once(server, 'listening');
   const address = server.address();
@@ -101,7 +101,5 @@ test('listing metadata routes preserve category reads and owner-verified writes'
   } finally {
     server.close();
     await once(server, 'close');
-    if (originalSecret === undefined) delete process.env.JWT_SECRET;
-    else process.env.JWT_SECRET = originalSecret;
   }
 });

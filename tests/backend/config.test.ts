@@ -7,7 +7,11 @@ test('backend config supplies backward-compatible local defaults', () => {
     port: 5001,
     mongoUri: 'mongodb://127.0.0.1:27017/peerloop',
     appOrigin: 'http://localhost:3000',
-    jwtSecret: undefined
+    jwtSecret: undefined,
+    isProduction: false,
+    chainRpcUrl: undefined,
+    contractAddress: undefined,
+    pinata: { apiKey: undefined, apiSecret: undefined, jwt: undefined }
   });
 });
 
@@ -21,8 +25,29 @@ test('backend config reads explicit environment settings', () => {
     port: 6200,
     mongoUri: 'mongodb://database/peerloop',
     appOrigin: 'https://marketplace.example',
-    jwtSecret: 'test-secret'
+    jwtSecret: 'test-secret',
+    isProduction: false,
+    chainRpcUrl: undefined,
+    contractAddress: undefined,
+    pinata: { apiKey: undefined, apiSecret: undefined, jwt: undefined }
   });
+});
+
+test('backend config centralizes chain aliases and storage credentials', () => {
+  const config = createBackendConfig({
+    SEPOLIA_RPC_URL: ' https://rpc.primary.test ',
+    RPC_URL: 'https://rpc.legacy.test',
+    CONTRACT_ADDRESS: ' 0x0000000000000000000000000000000000000001 ',
+    PINATA_API_KEY: ' key ',
+    PINATA_API_SECRET: ' secret ',
+    PINATA_JWT: ' jwt '
+  });
+  assert.equal(config.chainRpcUrl, 'https://rpc.primary.test');
+  assert.equal(config.contractAddress, '0x0000000000000000000000000000000000000001');
+  assert.deepEqual(config.pinata, { apiKey: 'key', apiSecret: 'secret', jwt: 'jwt' });
+
+  assert.equal(createBackendConfig({ RPC_URL: 'https://rpc.legacy.test' }).chainRpcUrl, 'https://rpc.legacy.test');
+  assert.equal(createBackendConfig({ SEPOLIA_RPC: 'https://rpc.old.test' }).chainRpcUrl, 'https://rpc.old.test');
 });
 
 test('backend config rejects invalid ports at startup', () => {
@@ -38,4 +63,9 @@ test('production config requires explicit database and frontend origins', () => 
     ...production,
     MONGO_URI: 'mongodb://database/peerloop'
   }), /APP_ORIGIN must be explicitly configured/);
+  assert.equal(createBackendConfig({
+    ...production,
+    MONGO_URI: 'mongodb://database/peerloop',
+    APP_ORIGIN: 'https://marketplace.example'
+  }).isProduction, true);
 });

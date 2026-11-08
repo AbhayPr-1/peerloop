@@ -6,6 +6,7 @@ import {
   createUploadService,
   isValidImage
 } from '../../../../backend/modules/uploads';
+import { createBackendConfig } from '../../../../backend/config';
 import { createPinataStorage } from '../../../../backend/modules/uploads/pinataStorage';
 
 test('upload module validates image signatures and preserves the authenticated upload contract', async () => {
@@ -31,17 +32,17 @@ test('upload module validates image signatures and preserves the authenticated u
     })
   });
 
-  const originalSecret = process.env.JWT_SECRET;
-  process.env.JWT_SECRET = 'upload-test-secret';
+  const testSecret = 'upload-test-secret';
   const jwt = require('jsonwebtoken');
   const token = jwt.sign({
     authVersion: 2,
     user: { id: 'user-1', name: 'Test User', walletAddress: '0x0000000000000000000000000000000000000001' }
-  }, process.env.JWT_SECRET);
+  }, testSecret);
 
   const express = require('express');
+  const { createAuthMiddleware } = require('../../../../backend/middleware/authMiddleware');
   const app = express();
-  app.use('/api/upload', createUploadRouter(uploadService));
+  app.use('/api/upload', createUploadRouter(uploadService, createAuthMiddleware({ jwtSecret: testSecret })));
   const server = app.listen(0);
   await once(server, 'listening');
   const address = server.address();
@@ -93,8 +94,6 @@ test('upload module validates image signatures and preserves the authenticated u
   } finally {
     server.close();
     await once(server, 'close');
-    if (originalSecret === undefined) delete process.env.JWT_SECRET;
-    else process.env.JWT_SECRET = originalSecret;
   }
 });
 
@@ -140,7 +139,7 @@ test('Pinata storage uploads files with the existing API-key credentials and met
   };
 
   try {
-    const storage = createPinataStorage();
+    const storage = createPinataStorage(createBackendConfig(process.env).pinata);
     assert.ok(storage);
     assert.equal(
       await storage.pinImage(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'listing.png'),
@@ -173,7 +172,7 @@ test('Pinata storage continues to support JWT credentials', async () => {
   };
 
   try {
-    const storage = createPinataStorage();
+    const storage = createPinataStorage(createBackendConfig(process.env).pinata);
     assert.ok(storage);
     assert.equal(
       await storage.pinImage(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'listing.png'),

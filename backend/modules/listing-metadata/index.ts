@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import config from '../../config';
 import { createMongooseListingMetadataRepository } from './listingMetadataRepository';
 import { marketplaceReader } from './marketplaceReader';
 import { createListingMetadataService } from './listingMetadataService';
@@ -18,7 +19,7 @@ export type {
 } from './listingMetadataService';
 
 function getContractAddress(): string | null {
-  const address = process.env.CONTRACT_ADDRESS;
+  const address = config.contractAddress;
   if (!ethers.isAddress(address || '')) return null;
   return ethers.getAddress(address).toLowerCase();
 }
@@ -27,7 +28,7 @@ const service = createListingMetadataService({
   repository: createMongooseListingMetadataRepository(),
   marketplace: marketplaceReader,
   getContractAddress,
-  getRpcUrl: () => process.env.SEPOLIA_RPC_URL
+  getRpcUrl: () => config.chainRpcUrl
 });
 
 export default createListingMetadataRouter(service);

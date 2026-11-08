@@ -1,15 +1,16 @@
 const path = require('node:path');
+import config from '../../config';
 import type { ImageStorage } from './uploadService';
 
 const PINATA_UPLOAD_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
 
-export function createPinataStorage(): ImageStorage | null {
+export function createPinataStorage(credentials = config.pinata): ImageStorage | null {
   const headers: Record<string, string> = {};
-  if (process.env.PINATA_API_KEY && process.env.PINATA_API_SECRET) {
-    headers.pinata_api_key = process.env.PINATA_API_KEY;
-    headers.pinata_secret_api_key = process.env.PINATA_API_SECRET;
-  } else if (process.env.PINATA_JWT) {
-    headers.Authorization = `Bearer ${process.env.PINATA_JWT}`;
+  if (credentials.apiKey && credentials.apiSecret) {
+    headers.pinata_api_key = credentials.apiKey;
+    headers.pinata_secret_api_key = credentials.apiSecret;
+  } else if (credentials.jwt) {
+    headers.Authorization = `Bearer ${credentials.jwt}`;
   } else {
     return null;
   }

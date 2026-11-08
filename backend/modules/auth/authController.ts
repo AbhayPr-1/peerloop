@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import config from '../../config';
 import { AuthServiceError } from './authService';
 
 interface AuthService {
@@ -9,7 +10,7 @@ interface AuthService {
   }>;
 }
 
-export function createAuthController(authService: AuthService) {
+export function createAuthController(authService: AuthService, isProduction = config.isProduction) {
   return {
     async createChallenge(req: Request, res: Response) {
       try {
@@ -33,7 +34,7 @@ export function createAuthController(authService: AuthService) {
       try {
         const { walletAddress, signature } = req.body || {};
         const result = await authService.signIn(walletAddress, signature);
-        const production = process.env.NODE_ENV === 'production';
+        const production = isProduction;
         const cookieName = production ? '__Host-peerloop_session' : 'peerloop_session';
         res.cookie(cookieName, result.token, {
           httpOnly: true,

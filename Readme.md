@@ -106,6 +106,9 @@ On-chain listing validation limits names to 100 UTF-8 bytes, descriptions to 2,0
 | `npm run test:contracts` | Run the Hardhat contract test suite. |
 | `npm run test:abi` | Verify generated browser ABI and backend listener events against the compiled contract artifact. |
 | `npm run check:abi` | Compile/sync the contract ABI and fail if the checked-in browser ABI would change. |
+| `npm run typecheck` | Run strict checks for the backend config module and selected typed browser boundaries without changing the legacy project-wide compiler settings. |
+| `npm run typecheck:config` | Strict-check validated backend runtime configuration. |
+| `npm run typecheck:browser-boundaries` | Strict-check API transport and ETH/wei domain modules. |
 | `npm run contracts:compile` | Compile the Solidity contracts. |
 | `npm run contracts:deploy` | Deploy the contract to Sepolia. |
 | `npm run contracts:deploy:local` | Deploy to a local Hardhat network. |

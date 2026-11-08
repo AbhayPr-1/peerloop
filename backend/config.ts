@@ -7,6 +7,14 @@ export interface BackendConfig {
   mongoUri: string;
   appOrigin: string;
   jwtSecret?: string;
+  isProduction: boolean;
+  chainRpcUrl?: string;
+  contractAddress?: string;
+  pinata: {
+    apiKey?: string;
+    apiSecret?: string;
+    jwt?: string;
+  };
 }
 
 export function createBackendConfig(environment: NodeJS.ProcessEnv): BackendConfig {
@@ -19,8 +27,19 @@ export function createBackendConfig(environment: NodeJS.ProcessEnv): BackendConf
   const mongoUri = environment.MONGO_URI?.trim() || 'mongodb://127.0.0.1:27017/peerloop';
   const appOrigin = environment.APP_ORIGIN?.trim() || 'http://localhost:3000';
   const jwtSecret = environment.JWT_SECRET?.trim() || undefined;
+  const isProduction = environment.NODE_ENV === 'production';
+  const chainRpcUrl = environment.SEPOLIA_RPC_URL?.trim()
+    || environment.RPC_URL?.trim()
+    || environment.SEPOLIA_RPC?.trim()
+    || undefined;
+  const contractAddress = environment.CONTRACT_ADDRESS?.trim() || undefined;
+  const pinata = {
+    apiKey: environment.PINATA_API_KEY?.trim() || undefined,
+    apiSecret: environment.PINATA_API_SECRET?.trim() || undefined,
+    jwt: environment.PINATA_JWT?.trim() || undefined
+  };
 
-  if (environment.NODE_ENV === 'production') {
+  if (isProduction) {
     if (!environment.MONGO_URI?.trim()) {
       throw new Error('MONGO_URI must be explicitly configured for production runs.');
     }
@@ -42,7 +61,11 @@ export function createBackendConfig(environment: NodeJS.ProcessEnv): BackendConf
     port,
     mongoUri,
     appOrigin,
-    jwtSecret
+    jwtSecret,
+    isProduction,
+    chainRpcUrl,
+    contractAddress,
+    pinata
   };
 }
 

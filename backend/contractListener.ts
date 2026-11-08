@@ -1,10 +1,10 @@
 // backend/contractListener.js
 // Polling-based contract listener (HTTPS RPC) with event deduplication
 const { ethers } = require('ethers');
-require('dotenv').config();
+const config = require('./config').default;
 
-const RPC_URL = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || process.env.SEPOLIA_RPC;
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
+const RPC_URL = config.chainRpcUrl;
+const CONTRACT_ADDRESS = config.contractAddress;
 
 function hasPlaceholderRpcUrl(url) {
   return typeof url !== 'string' || !url.trim() || url.includes('your_alchemy_key') || url.includes('your_') || url.includes('example') || url.includes('placeholder');

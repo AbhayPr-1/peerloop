@@ -5,13 +5,16 @@ import { MAX_IMAGE_BYTES, isValidImage } from './imageValidation';
 import { UploadServiceError } from './uploadService';
 import type { createUploadService } from './uploadService';
 
-const auth = require('../../middleware/authMiddleware');
+const defaultAuth = require('../../middleware/authMiddleware');
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_IMAGE_BYTES, files: 1 }
 });
 
-export function createUploadRouter(uploadService: ReturnType<typeof createUploadService>) {
+export function createUploadRouter(
+  uploadService: ReturnType<typeof createUploadService>,
+  auth: typeof defaultAuth = defaultAuth
+) {
   const router = express.Router();
 
   function receiveImage(req: Request, res: Response, next: NextFunction) {

@@ -10,9 +10,13 @@ const config = require('../../config').default;
 const RATE_WINDOW_MS = 60 * 1000;
 const MAX_CHALLENGES_PER_WINDOW = 10;
 
-export function createAuthRouter(authService: ReturnType<typeof createAuthService>) {
+export function createAuthRouter(
+  authService: ReturnType<typeof createAuthService>,
+  options: { isProduction?: boolean } = {}
+) {
   const router = express.Router();
-  const controller = createAuthController(authService);
+  const isProduction = options.isProduction ?? config.isProduction;
+  const controller = createAuthController(authService, isProduction);
   const limitChallengeRequests = createIpRateLimiter(
     MAX_CHALLENGES_PER_WINDOW,
     RATE_WINDOW_MS,
@@ -42,7 +46,7 @@ export function createAuthRouter(authService: ReturnType<typeof createAuthServic
     return res.json({ user: req.user });
   });
   router.post('/logout', auth, (_req, res) => {
-    const production = process.env.NODE_ENV === 'production';
+    const production = isProduction;
     res.clearCookie(production ? '__Host-peerloop_session' : 'peerloop_session', {
       httpOnly: true,
       secure: production,

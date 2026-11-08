@@ -62,7 +62,7 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
   const express = require('express');
   const app = express();
   app.use(express.json());
-  app.use('/api/auth', createAuthRouter(authService));
+  app.use('/api/auth', createAuthRouter(authService, { isProduction: true }));
   const server = app.listen(0);
   await once(server, 'listening');
   const address = server.address();
@@ -126,15 +126,10 @@ test('wallet authentication routes preserve challenge, login, and rate-limit con
     assert.equal(wrongWalletSignature.status, 401);
     assert.equal((await wrongWalletSignature.json()).msg, 'Wallet signature does not match the requested address.');
 
-    const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
     const loginResponse = await appFetch(`${baseUrl}/metamask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, signature: 'valid' })
-    }).finally(() => {
-      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-      else process.env.NODE_ENV = originalNodeEnv;
     });
     assert.equal(loginResponse.status, 200);
     const sessionCookie = loginResponse.headers.get('set-cookie') || '';

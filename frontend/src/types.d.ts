@@ -28,6 +28,12 @@ interface PeerLoopApiTransport {
   create(baseUrl: string, fetcher: typeof fetch, createFormData: () => FormData): PeerLoopApiClient;
 }
 
+interface Eip1193Provider {
+  request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
+  on?(event: string, listener: (...args: unknown[]) => void): unknown;
+  removeListener?(event: string, listener: (...args: unknown[]) => void): unknown;
+}
+
 interface Window {
   PEERLOOP_API_URL?: string;
   PeerLoopMoney: {
@@ -51,9 +57,9 @@ interface Window {
   clearUserCart(): void;
   PeerLoopApi: PeerLoopApiClient;
   PeerLoopApiTransport: PeerLoopApiTransport;
-  ethereum?: any;
+  ethereum?: Eip1193Provider;
   WalletDetection: {
-    detectWalletProvider(): Promise<{ info: { name: string; uuid: string } | null; provider: any } | null>;
+    detectWalletProvider(): Promise<{ info: { name: string; uuid: string } | null; provider: Eip1193Provider } | null>;
     getNoWalletMessage(): Promise<string>;
     getDetectedWalletNames(): Promise<string[]>;
     DETECTION_TIMEOUT_MS: number;
