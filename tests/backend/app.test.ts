@@ -64,3 +64,24 @@ test('health readiness reports database outages while liveness stays available',
     await once(server, 'close');
   }
 });
+
+test('legacy Mongo product/user route modules remain unmounted', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const [products, users] = await Promise.all([
+      fetch(`${baseUrl}/api/products`),
+      fetch(`${baseUrl}/api/users`)
+    ]);
+    assert.equal(products.status, 404);
+    assert.equal(users.status, 404);
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});

@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            smart-contract/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install contract-tooling dependencies
+        run: npm ci --prefix smart-contract
+
+      - name: Lint, test, compile, and build
+        run: npm run verify

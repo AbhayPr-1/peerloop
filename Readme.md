@@ -102,6 +102,10 @@ On-chain listing validation limits names to 100 UTF-8 bytes, descriptions to 2,0
 | `npm run dev:backend` | Start the backend with nodemon. |
 | `npm run dev:frontend` | Serve the frontend on port 3000. |
 | `npm start` | Start the backend in production mode. |
+| `npm run verify` | Run lint, Solidity compilation, ABI parity checks, backend/frontend tests, contract tests, and the full build. |
+| `npm run test:contracts` | Run the Hardhat contract test suite. |
+| `npm run test:abi` | Verify generated browser ABI and backend listener events against the compiled contract artifact. |
+| `npm run check:abi` | Compile/sync the contract ABI and fail if the checked-in browser ABI would change. |
 | `npm run contracts:compile` | Compile the Solidity contracts. |
 | `npm run contracts:deploy` | Deploy the contract to Sepolia. |
 | `npm run contracts:deploy:local` | Deploy to a local Hardhat network. |
@@ -147,6 +151,8 @@ The contract exposes `getForSaleProductsPage(cursor, scanLimit)` with a maximum 
 The contract does not store product categories. The backend persists the selected category as listing metadata after verifying the listing owner on-chain. This means categories require the backend, MongoDB, and a valid `CONTRACT_ADDRESS` and `SEPOLIA_RPC_URL`; metadata is scoped to the deployed contract address.
 
 `GET /health/live` reports whether the backend process is running. `GET /health/ready` (also available at `/health` for compatibility) returns HTTP 503 until MongoDB is connected. In-memory IP rate limits are bounded per process and are not shared across instances; production deployments with multiple backend replicas should use a shared rate-limit store and configure Express proxy trust to match the actual reverse-proxy topology.
+
+GitHub Actions runs `npm run verify` on pushes and pull requests after installing both dependency lockfiles. Run the same command locally before proposing a change. The contract event listener remains an in-memory poller; the new fake-provider tests protect its event payload and stop behavior, but they do not provide durable replay or chain-reorganization recovery.
 
 ## Technology
 

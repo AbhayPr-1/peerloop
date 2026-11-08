@@ -40,9 +40,19 @@ interface ListenerOptions {
   lookbackBlocks?: number;
   maxBlockRange?: number;
   dedupeCacheSize?: number;
+  rpcUrl?: string;
+  contractAddress?: string;
+  provider?: any;
+  contract?: any;
+  logger?: Pick<Console, 'log' | 'warn' | 'error'>;
+  scheduler?: Pick<typeof globalThis, 'setInterval' | 'clearInterval' | 'setTimeout' | 'clearTimeout'>;
 }
 
 function startContractListener(io, opts: ListenerOptions = {}) {
+  const rpcUrl = opts.rpcUrl ?? RPC_URL;
+  const contractAddress = opts.contractAddress ?? CONTRACT_ADDRESS;
+  const logger = opts.logger || console;
+  const scheduler = opts.scheduler || globalThis;
   const pollIntervalMs = opts.pollIntervalMs || 3000;
   const lookbackBlocks = typeof opts.lookbackBlocks === 'number' ? opts.lookbackBlocks : 2;
   const maxBlockRange = Number.isInteger(opts.maxBlockRange) && opts.maxBlockRange > 0
@@ -50,16 +60,17 @@ function startContractListener(io, opts: ListenerOptions = {}) {
     : 10;
   const dedupeCacheSize = opts.dedupeCacheSize || 1000;
 
-  if (!RPC_URL || !CONTRACT_ADDRESS || hasPlaceholderRpcUrl(RPC_URL)) {
-    console.warn('Contract listener not started: missing or placeholder RPC_URL/CONTRACT_ADDRESS.');
+  if (!rpcUrl || !contractAddress || hasPlaceholderRpcUrl(rpcUrl)) {
+    logger.warn('Contract listener not started: missing or placeholder RPC_URL/CONTRACT_ADDRESS.');
     return { stop: () => {} };
   }
 
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const contract = new ethers.Contract(CONTRACT_ADDRESS, MARKETPLACE_ABI, provider);
+  const provider = opts.provider || new ethers.JsonRpcProvider(rpcUrl);
+  const contract = opts.contract || new ethers.Contract(contractAddress, MARKETPLACE_ABI, provider);
 
   let stopped = false;
   let pollHandle = null;
+  let startupPollHandle = null;
   let pollInProgress = false;
   let lastChecked = null; // last fully-processed block number
 
@@ -84,15 +95,16 @@ function startContractListener(io, opts: ListenerOptions = {}) {
       const latest = await provider.getBlockNumber();
       // start from latest (so first poll will check from latest - lookback to latest)
       lastChecked = Math.max(0, latest - 1);
-      console.log(`Contract polling initialized. Starting from block ${lastChecked + 1}`);
+      logger.log(`Contract polling initialized. Starting from block ${lastChecked + 1}`);
     } catch (err) {
-      console.error('Failed to initialize block number:', err);
+      logger.error('Failed to initialize block number:', err);
       lastChecked = null;
     }
 
-    pollHandle = setInterval(pollOnce, pollIntervalMs);
+    if (stopped) return;
+    pollHandle = scheduler.setInterval(pollOnce, pollIntervalMs);
     // run immediately once
-    setTimeout(pollOnce, 200);
+    startupPollHandle = scheduler.setTimeout(pollOnce, 200);
   }
 
   async function pollOnce() {
@@ -130,10 +142,10 @@ function startContractListener(io, opts: ListenerOptions = {}) {
               escrowId = ev.args.escrowId == null ? null : ev.args.escrowId.toString();
             }
           } catch (e) {
-            console.warn('Error reading ev.args', e);
+            logger.warn('Error reading ev.args', e);
           }
 
-          console.log(`[POLL EVENT] ${type} tx=${tx} logIndex=${logIndex} id=${id} name=${name}`);
+          logger.log(`[POLL EVENT] ${type} tx=${tx} logIndex=${logIndex} id=${id} name=${name}`);
           io.emit('product_updated', { type, id, name, escrowId, tx, logIndex });
         }
       };
@@ -141,7 +153,7 @@ function startContractListener(io, opts: ListenerOptions = {}) {
       const from = Math.max(0, lastChecked + 1 - lookbackBlocks);
       for (let chunkStart = from; chunkStart <= latest; chunkStart += maxBlockRange) {
         const chunkEnd = Math.min(latest, chunkStart + maxBlockRange - 1);
-        console.log(`Polling blocks ${chunkStart} → ${chunkEnd} (lastChecked=${lastChecked})`);
+        logger.log(`Polling blocks ${chunkStart} → ${chunkEnd} (lastChecked=${lastChecked})`);
 
         const listed = await contract.queryFilter('ProductListed', chunkStart, chunkEnd);
         const sold = await contract.queryFilter('ProductSold', chunkStart, chunkEnd);
@@ -151,7 +163,7 @@ function startContractListener(io, opts: ListenerOptions = {}) {
         const disputed = await contract.queryFilter('EscrowDisputed', chunkStart, chunkEnd);
         const votes = await contract.queryFilter('EscrowResolutionVoted', chunkStart, chunkEnd);
         if (listed.length || sold.length || deleted.length || refunded.length || released.length || disputed.length || votes.length) {
-          console.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length} refunded:${refunded.length} released:${released.length} disputed:${disputed.length} votes:${votes.length}`);
+          logger.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length} refunded:${refunded.length} released:${released.length} disputed:${disputed.length} votes:${votes.length}`);
         }
 
         processEvents(listed, 'listed');
@@ -165,7 +177,7 @@ function startContractListener(io, opts: ListenerOptions = {}) {
 
       lastChecked = latest;
     } catch (err) {
-      console.error('Polling error:', err && err.message ? err.message : err);
+      logger.error('Polling error:', err && err.message ? err.message : err);
       await sleep(2000);
     } finally {
       pollInProgress = false;
@@ -173,14 +185,15 @@ function startContractListener(io, opts: ListenerOptions = {}) {
   }
 
   init().catch(err => {
-    console.error('Failed to start contract listener:', err);
+    logger.error('Failed to start contract listener:', err);
   });
 
   function stop() {
     stopped = true;
-    if (pollHandle) clearInterval(pollHandle);
+    if (pollHandle) scheduler.clearInterval(pollHandle);
+    if (startupPollHandle) scheduler.clearTimeout(startupPollHandle);
     try { provider.destroy && provider.destroy(); } catch (_) {}
-    console.log('Contract listener stopped.');
+    logger.log('Contract listener stopped.');
   }
 
   return { stop };
