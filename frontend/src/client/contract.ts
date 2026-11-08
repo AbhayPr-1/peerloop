@@ -1,7 +1,7 @@
 // frontend/js/contract.js
 
-const marketplaceAddress = "0x2F9dd22a3431Dcad05dd9E9fb6b2927e8ed905F5";
-const marketplaceDeploymentBlock = 12082533;
+const marketplaceAddress = "0xa398c5EbaC5F44CCb4405D1bc83B800Fb2D5661b";
+const marketplaceDeploymentBlock = 12090311;
 
 
 // // --- CONTRACT INITIALIZATION ---
@@ -112,7 +112,32 @@ async function readMarketplaceProducts() {
     try {
         const result = await Promise.any(rpcUrls.map(async (rpcUrl) => {
             const contract = getReadOnlyContract(rpcUrl);
-            const products = await withReadTimeout(contract.getAllForSaleProducts(), rpcUrl);
+            let products;
+            try {
+                products = [];
+                let cursor = '0';
+                while (true) {
+                    const page = await withReadTimeout(
+                        contract.getForSaleProductsPage(cursor, 100),
+                        rpcUrl
+                    );
+                    const pageProducts = page.productsPage || page[0];
+                    const nextCursor = (page.nextCursor || page[1]).toString();
+                    products.push(...pageProducts);
+                    if (nextCursor === '0') break;
+                    if (BigInt(nextCursor) <= BigInt(cursor)) {
+                        throw new Error('Marketplace pagination returned an invalid cursor.');
+                    }
+                    cursor = nextCursor;
+                }
+            } catch (error) {
+                if (error.code !== 'CALL_EXCEPTION') throw error;
+                console.warn(
+                    'Paged marketplace reads are not supported by this deployment; using the legacy full-list getter.',
+                    error.message
+                );
+                products = await withReadTimeout(contract.getAllForSaleProducts(), rpcUrl);
+            }
             return { contract, products };
         }));
         readOnlyContract = result.contract;

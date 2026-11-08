@@ -137,7 +137,7 @@ function showQuickView(product) {
                   Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
                 </div>
                 <div class="product-card-meta mb-6">
-                    <span class="product-card-price text-3xl text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
+                    <span class="product-card-price text-3xl text-neon-pink font-bold">${window.PeerLoopMoney.formatEth(product.price)} ETH</span>
                     <span class="product-card-category text-sm px-3 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
                 </div>
                 <div class="product-card-actions grid grid-cols-2 gap-3">${actionButtons}</div>
@@ -152,7 +152,7 @@ function showQuickView(product) {
     if (buyNowBtn) {
         buyNowBtn.addEventListener('click', (e) => {
             if (!currentUser) return showAuthModal();
-            const message = `Buy <strong>${escapeHtml(product.name)}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>? Payment will be held in escrow until you release it or request a refund.`;
+            const message = `Buy <strong>${escapeHtml(product.name)}</strong> for <strong>${window.PeerLoopMoney.formatEth(product.price)} ETH</strong>? Payment will be held in escrow until you release it or request a refund.`;
             showConfirmationModal(message, () => buyNow(product, e.currentTarget));
         });
     }

@@ -16,58 +16,13 @@ if (!CONTRACT_ADDRESS) console.error('Missing CONTRACT_ADDRESS in backend/.env')
 
 /* ABI (events + useful functions) */
 const MARKETPLACE_ABI = [
-  /* keep same ABI as before — events used: ProductListed, ProductSold, ProductDeleted */
-  {
-    "inputs": [],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": false, "internalType": "uint256", "name": "id", "type": "uint256" },
-      { "indexed": false, "internalType": "string", "name": "name", "type": "string" },
-      { "indexed": false, "internalType": "address", "name": "seller", "type": "address" }
-    ],
-    "name": "ProductDeleted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": false, "internalType": "uint256", "name": "id", "type": "uint256" },
-      { "indexed": false, "internalType": "string", "name": "name", "type": "string" },
-      { "indexed": false, "internalType": "uint256", "name": "price", "type": "uint256" },
-      { "indexed": false, "internalType": "string", "name": "imageUrl", "type": "string" },
-      { "indexed": false, "internalType": "address", "name": "seller", "type": "address" }
-    ],
-    "name": "ProductListed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": false, "internalType": "uint256", "name": "id", "type": "uint256" },
-      { "indexed": false, "internalType": "string", "name": "name", "type": "string" },
-      { "indexed": false, "internalType": "uint256", "name": "price", "type": "uint256" },
-      { "indexed": false, "internalType": "address", "name": "seller", "type": "address" },
-      { "indexed": false, "internalType": "address", "name": "buyer", "type": "address" }
-    ],
-    "name": "ProductSold",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": false, "internalType": "uint256", "name": "escrowId", "type": "uint256" },
-      { "indexed": false, "internalType": "uint256", "name": "productId", "type": "uint256" },
-      { "indexed": false, "internalType": "address", "name": "buyer", "type": "address" },
-      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
-    ],
-    "name": "EscrowRefunded",
-    "type": "event"
-  },
-  /* rest of ABI omitted for brevity in display — you already have functions if needed */
+  'event ProductDeleted(uint256 id, string name, address seller)',
+  'event ProductListed(uint256 id, string name, uint256 price, string imageUrl, address seller)',
+  'event ProductSold(uint256 id, string name, uint256 price, address seller, address buyer)',
+  'event EscrowRefunded(uint256 escrowId, uint256 productId, address buyer, uint256 amount)',
+  'event EscrowReleased(uint256 escrowId, uint256 productId, address seller, uint256 amount)',
+  'event EscrowDisputed(uint256 escrowId, uint256 productId, address initiator)',
+  'event EscrowResolutionVoted(uint256 escrowId, uint256 productId, address voter, bool releaseToSeller, uint8 votes)',
 ];
 
 /* Utilities */
@@ -192,15 +147,20 @@ function startContractListener(io, opts: ListenerOptions = {}) {
         const sold = await contract.queryFilter('ProductSold', chunkStart, chunkEnd);
         const deleted = await contract.queryFilter('ProductDeleted', chunkStart, chunkEnd);
         const refunded = await contract.queryFilter('EscrowRefunded', chunkStart, chunkEnd);
-
-        if (listed.length || sold.length || deleted.length || refunded.length) {
-          console.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length} refunded:${refunded.length}`);
+        const released = await contract.queryFilter('EscrowReleased', chunkStart, chunkEnd);
+        const disputed = await contract.queryFilter('EscrowDisputed', chunkStart, chunkEnd);
+        const votes = await contract.queryFilter('EscrowResolutionVoted', chunkStart, chunkEnd);
+        if (listed.length || sold.length || deleted.length || refunded.length || released.length || disputed.length || votes.length) {
+          console.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length} refunded:${refunded.length} released:${released.length} disputed:${disputed.length} votes:${votes.length}`);
         }
 
         processEvents(listed, 'listed');
         processEvents(sold, 'sold');
         processEvents(deleted, 'deleted');
         processEvents(refunded, 'refunded');
+        processEvents(released, 'released');
+        processEvents(disputed, 'disputed');
+        processEvents(votes, 'vote');
       }
 
       lastChecked = latest;

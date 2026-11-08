@@ -70,7 +70,7 @@
         return {
           _id: args.id.toString(),
           name: String(args.name),
-          price: Number(ethers.utils.formatEther(args.price)),
+          price: ethers.utils.formatEther(args.price),
           seller: String(args.seller),
           buyer: String(args.buyer),
           imageUrl: '',
@@ -200,7 +200,7 @@
         soldEvents.push({
           _id: args.id.toString(),
           name: String(args.name),
-          price: Number(ethers.utils.formatEther(args.price)),
+          price: ethers.utils.formatEther(args.price),
           seller: String(args.seller),
           buyer: String(args.buyer),
           imageUrl: '',
@@ -368,7 +368,7 @@
     const confirmedPurchase = {
       _id: String(purchase.productId),
       name: String(purchase.name || 'Marketplace item'),
-      price: Number(purchase.price) || 0,
+      price: String(purchase.price),
       seller: String(purchase.seller),
       buyer: String(purchase.buyer),
       imageUrl: String(purchase.imageUrl || ''),

@@ -7,13 +7,14 @@ PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. 
 ## How it works
 
 - The Solidity contract handles product listings and escrow-backed purchases. Buyers release payment to the seller or refund it from Purchase History.
-- The Express backend manages wallet-based login, user data, image uploads, and runtime health checks.
+- The Express backend manages wallet-based login, user data, image uploads, and liveness/readiness checks.
 - Product images are uploaded to Pinata and stored as canonical IPFS URIs; the frontend uses a fast gateway first and falls back to alternate gateways if needed.
 - Marketplace reads race validated Sepolia RPC endpoints so a slow or unavailable endpoint does not block Explore.
 - An Ethers.js listener watches contract events and sends updates to the frontend through Socket.IO.
 - The backend, startup tools, and browser application are written in TypeScript. React mounts the browser UI from a TypeScript-generated document. The cart, theme choice, and transaction-history cache are kept in page memory and reset on reload; authentication is maintained by a server-issued HttpOnly cookie.
 - Tailwind utility styles are compiled locally as part of the frontend build; the browser does not load Tailwind from a CDN.
 - The account dashboard is isolated in its own frontend module; profile activity dates come from the corresponding Sepolia block timestamp.
+- ETH prices remain decimal strings in the browser and are converted to integer wei for comparisons, totals, and transaction input. Cart checkout reports each item and links successful transactions; failed items remain in the cart.
 
 ## Requirements
 
@@ -82,7 +83,13 @@ The deploy script updates the contract address in the root environment and `fron
 npm run contracts:deploy:local
 ```
 
-Marketplace purchases use `buyProductWithEscrow`: funds remain in the contract until the buyer releases them to the seller or requests a refund. A successful refund returns the full held amount to the buyer (transaction gas is paid separately), restores the product to the seller's active listings, and clears its sold/buyer fields. The seller is not debited because escrow funds are not paid to the seller until release. Escrow status and actions are available from the Escrow view and My Purchases; refunded items remain visible as refunded in the seller's Sold History. Confirmed escrow actions update the profile immediately while event indexing catches up. After changing the contract, redeploy it and rebuild/restart the app so the frontend points at the new deployment. Purchases made through the old direct-purchase flow are not escrowed.
+Marketplace purchases use `buyProductWithEscrow`. The buyer may release or refund an active escrow, or open a dispute. During a dispute, the buyer and seller must choose the same outcome to settle. There is no fulfillment-evidence workflow, deadline, automatic refund, or dispute timeout. If the parties do not agree, the funds remain locked indefinitely; this is a known limitation, not an audited or recommended dispute policy.
+
+Settlement credits the winning party's `pendingWithdrawals` balance instead of sending ETH inline. The payee then calls `withdrawPayments`; this avoids a rejecting wallet blocking escrow settlement. Refunded items are relisted and remain in seller history. Escrow records are stored by unique escrow ID so later purchases cannot overwrite prior purchase state.
+
+The contract source does not expose a direct `buyProduct` path. Source changes do not modify an already deployed contract: a replacement deployment is required for these changes to take effect on-chain. Redeployment changes the contract address and starts new product/escrow IDs. Existing on-chain listings and their transaction history are not automatically migrated or shown by the new deployment, and categories are scoped to contract address. Review the migration/history implications and new address before deploying.
+
+On-chain listing validation limits names to 100 UTF-8 bytes, descriptions to 2,000 UTF-8 bytes, image metadata to 4,096 UTF-8 bytes, and prices to greater than zero. Browser form limits mirror these constraints. Pagination is cursor-based with scans capped at 100 product IDs.
 
 ## Available commands
 
@@ -135,7 +142,11 @@ The authored TypeScript is under `backend/`, `scripts/`, `frontend/src/`, and `s
 
 Listings and purchases are sent directly to the smart contract. Sold History and Purchase History are built from the contract's `ProductSold` and escrow lifecycle events. Cart contents are page-memory only and do not persist across reloads. The legacy MongoDB product and user route modules are not mounted by the current server.
 
+The contract exposes `getForSaleProductsPage(cursor, scanLimit)` with a maximum scan limit of 100 product IDs; the legacy full-list getter remains for old clients. The browser uses pages when the deployed contract supports them and falls back to the legacy getter for the current deployment. The contract stores escrow records in an escrow-ID history mapping in addition to the product-ID compatibility mapping. These contract changes take effect only after a new deployment; no deployment is performed by this project review.
+
 The contract does not store product categories. The backend persists the selected category as listing metadata after verifying the listing owner on-chain. This means categories require the backend, MongoDB, and a valid `CONTRACT_ADDRESS` and `SEPOLIA_RPC_URL`; metadata is scoped to the deployed contract address.
+
+`GET /health/live` reports whether the backend process is running. `GET /health/ready` (also available at `/health` for compatibility) returns HTTP 503 until MongoDB is connected. In-memory IP rate limits are bounded per process and are not shared across instances; production deployments with multiple backend replicas should use a shared rate-limit store and configure Express proxy trust to match the actual reverse-proxy topology.
 
 ## Technology
 

@@ -109,9 +109,27 @@ test('marketplace ABI script loads before contract runtime and retains required 
     "marketplaceABI.filter(item => item.type === 'event').map(item => item.name)",
     browserContext
   ) as string[];
-  assert.deepEqual(JSON.parse(JSON.stringify(eventNames)), [
-    'ProductDeleted', 'ProductListed', 'ProductSold', 'EscrowRefunded'
-  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(eventNames)).sort(), [
+    'ProductDeleted', 'ProductListed', 'ProductSold', 'EscrowCreated', 'EscrowReleased',
+    'EscrowRefunded', 'EscrowDisputed', 'EscrowResolutionVoted', 'PaymentWithdrawn'
+  ].sort());
+  const functionNames = runInNewContext(
+    "marketplaceABI.filter(item => item.type === 'function').map(item => item.name)",
+    browserContext
+  ) as string[];
+  assert.ok(functionNames.includes('getForSaleProductsPage'));
+  assert.ok(functionNames.includes('escrowHistory'));
+  assert.ok(functionNames.includes('disputeEscrow'));
+  assert.ok(functionNames.includes('voteDisputeResolution'));
+  assert.ok(functionNames.includes('disputeResolutionVotes'));
+  assert.ok(functionNames.includes('releaseEscrow'));
+  assert.ok(functionNames.includes('refundEscrow'));
+  assert.equal(functionNames.includes('resolveDispute'), false);
+  assert.equal(functionNames.includes('arbitrator'), false);
+  assert.ok(functionNames.includes('pendingWithdrawals'));
+  assert.ok(functionNames.includes('withdrawPayments'));
+  assert.equal(functionNames.includes('buyProduct'), false);
+  assert.equal(functionNames.includes('owner'), false);
 
   const { renderDocument } = require('../../frontend/src/document');
   const html = renderDocument(undefined, false);

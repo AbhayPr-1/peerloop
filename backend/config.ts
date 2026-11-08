@@ -21,10 +21,16 @@ export function createBackendConfig(environment: NodeJS.ProcessEnv): BackendConf
   const jwtSecret = environment.JWT_SECRET?.trim() || undefined;
 
   if (environment.NODE_ENV === 'production') {
+    if (!environment.MONGO_URI?.trim()) {
+      throw new Error('MONGO_URI must be explicitly configured for production runs.');
+    }
+    if (!environment.APP_ORIGIN?.trim()) {
+      throw new Error('APP_ORIGIN must be explicitly configured for production runs.');
+    }
     if (!appOrigin || appOrigin.includes('localhost')) {
       console.warn('APP_ORIGIN is using a localhost value in production; verify the deployed frontend URL before launch.');
     }
-    if (!mongoUri || mongoUri.includes('your_')) {
+    if (mongoUri.includes('your_')) {
       throw new Error('MONGO_URI must be configured for production runs.');
     }
     if (!jwtSecret) {

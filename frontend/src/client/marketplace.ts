@@ -35,7 +35,7 @@ function createProductCard(product) {
       Seller: <a href="#" class="seller-link">${escapeHtml(sellerDisplay)}</a>
     </div>
     <div class="product-card-meta mb-4">
-      <span class="product-card-price text-neon-pink font-bold">${Number(product.price).toFixed(4)} ETH</span>
+      <span class="product-card-price text-neon-pink font-bold">${window.PeerLoopMoney.formatEth(product.price)} ETH</span>
       <span class="product-card-category text-xs px-2 py-1 rounded bg-gray-700">${escapeHtml(displayCategory)}</span>
     </div><div class="product-card-actions grid grid-cols-2 gap-3">${actionButtons}</div>`;
   const imageGallery = createProductImageGallery(product.imageUrl, product.name, 'marketplace', () => showQuickView(product));
@@ -46,7 +46,7 @@ function createProductCard(product) {
     buyNowBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       if (!currentUser) return showAuthModal(); // Still need to be logged in to buy
-      const message = `Buy <strong>${escapeHtml(product.name)}</strong> for <strong>${Number(product.price).toFixed(4)} ETH</strong>? Payment will be held in escrow until you release it or request a refund.`;
+      const message = `Buy <strong>${escapeHtml(product.name)}</strong> for <strong>${window.PeerLoopMoney.formatEth(product.price)} ETH</strong>? Payment will be held in escrow until you release it or request a refund.`;
       showConfirmationModal(message, () => buyNow(product, e.currentTarget));
     });
   }
@@ -101,7 +101,7 @@ function markProductAvailable(productId, historyRecord = null) {
             _id: id,
             name: historyRecord.name || 'Marketplace item',
             description: historyRecord.description || '',
-            price: Number(historyRecord.price) || 0,
+            price: String(historyRecord.price || '0'),
             seller: String(historyRecord.seller || ''),
             imageUrl: historyRecord.imageUrl || '',
             category: historyRecord.category || 'data',
@@ -134,7 +134,7 @@ async function loadProductsFromChain() {
             _id: p.id.toString(),
             name: String(p.name || ''),
             description: String(p.description || ''),
-            price: Number(ethers.utils.formatEther(p.price)),
+            price: ethers.utils.formatEther(p.price),
             seller: String(p.seller || ''),
             imageUrl: String(p.imageUrl || ''),
             category: categories[p.id.toString()] || 'data',
@@ -199,24 +199,31 @@ function filterAndSortProducts() {
   const sortBy = (document.querySelector("#sort-by input[type='hidden']") as HTMLInputElement | null)?.value || "date-desc";
   const priceControl = document.getElementById('price-filter');
   if (priceControl && allProducts.length) {
-    const highest = Math.max(0.001, ...allProducts.map(p => Number(p.price) || 0));
-    const bound = Math.ceil(highest * 1000) / 1000;
-    const oldBound = Number(priceControl.dataset.bound || priceControl.max);
-    if (!priceControl.dataset.bound || Number(priceControl.value) >= oldBound - 0.001) priceControl.value = String(bound);
-    priceControl.max = String(bound);
-    priceControl.dataset.bound = String(bound);
-    document.getElementById('price-filter-max-label').textContent = `${bound.toFixed(3)} ETH`;
+    const stepWei = 10n ** 15n;
+    const highestWei = allProducts.reduce((highest, product) => {
+      const priceWei = window.PeerLoopMoney.toWei(product.price);
+      return priceWei > highest ? priceWei : highest;
+    }, stepWei);
+    const boundWei = ((highestWei + stepWei - 1n) / stepWei) * stepWei;
+    const bound = window.PeerLoopMoney.fromWei(boundWei, 3);
+    const oldBound = priceControl.dataset.bound || priceControl.max;
+    if (!priceControl.dataset.bound
+      || window.PeerLoopMoney.compareEth(priceControl.value, oldBound) >= 0) priceControl.value = bound;
+    priceControl.max = bound;
+    priceControl.dataset.bound = bound;
+    document.getElementById('price-filter-max-label').textContent = `${bound} ETH`;
     const output = document.getElementById('price-filter-value');
-    output.textContent = Number(priceControl.value) >= bound - 0.001 ? 'Any price' : `${Number(priceControl.value).toFixed(3)} ETH`;
+    output.textContent = window.PeerLoopMoney.compareEth(priceControl.value, bound) >= 0
+      ? 'Any price' : `${priceControl.value} ETH`;
   }
   let list = [...allProducts];
   if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   if (cat !== "all") list = list.filter(p => p.category === cat);
   if (document.getElementById('available-only')?.checked) list = list.filter(p => !p.isSold);
-  if (priceControl) list = list.filter(p => Number(p.price) <= Number(priceControl.value) + 1e-9);
+  if (priceControl) list = list.filter(p => window.PeerLoopMoney.compareEth(p.price, priceControl.value) <= 0);
   switch (sortBy) {
-    case "price-asc": list.sort((a, b) => Number(a.price) - Number(b.price)); break;
-    case "price-desc": list.sort((a, b) => Number(b.price) - Number(a.price)); break;
+    case "price-asc": list.sort((a, b) => window.PeerLoopMoney.compareEth(a.price, b.price)); break;
+    case "price-desc": list.sort((a, b) => window.PeerLoopMoney.compareEth(b.price, a.price)); break;
     case "name-asc": list.sort((a, b) => a.name.localeCompare(b.name)); break;
     case "name-desc": list.sort((a, b) => b.name.localeCompare(a.name)); break;
     default: break;
@@ -225,8 +232,14 @@ function filterAndSortProducts() {
   if (count) count.textContent = `${list.length} ${list.length === 1 ? 'listing' : 'listings'}`;
   renderProducts(list);
 }async function buyNow(product, buttonElement = null) {
-  if (!currentUser) return showAuthModal();
-  if (!marketplaceContract || !signer) return showMessage("Connecting to contract... Please log in again.");
+  if (!currentUser) {
+    showAuthModal();
+    throw new Error('Sign in before purchasing.');
+  }
+  if (!marketplaceContract || !signer) {
+    showMessage("Connecting to contract... Please log in again.");
+    throw new Error('Wallet is not connected to the marketplace contract.');
+  }
 
   if (buttonElement) setButtonLoading(buttonElement, true, 'Paying...');
 
@@ -283,7 +296,8 @@ function filterAndSortProducts() {
     showMessage("Purchase secured in escrow. Review its status and release or refund it from Escrow.");
 
     fetchProducts(true); 
-    
+    return { transactionHash: receipt.transactionHash || tx.hash };
+
   } catch (error) {
     console.error("Purchase failed:", error);
     let errorMessage = "Transaction failed. Please check console for details.";

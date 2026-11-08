@@ -34,3 +34,33 @@ test('application composition preserves health and credentialed CORS contracts',
     await once(server, 'close');
   }
 });
+
+test('health readiness reports database outages while liveness stays available', async () => {
+  const app = createApp({ databaseStatus: () => 'disconnected' });
+  const server = app.listen(0);
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const liveness = await fetch(`${baseUrl}/health/live`);
+    assert.equal(liveness.status, 200);
+    assert.equal((await liveness.json()).status, 'ok');
+
+    const readiness = await fetch(`${baseUrl}/health/ready`);
+    assert.equal(readiness.status, 503);
+    assert.equal(readiness.headers.get('cache-control'), 'no-store');
+    const readinessBody = await readiness.json();
+    assert.deepEqual(readinessBody, {
+      status: 'unavailable',
+      service: 'peerloop-backend',
+      timestamp: readinessBody.timestamp,
+      database: 'disconnected'
+    });
+    assert.ok(Number.isFinite(Date.parse(readinessBody.timestamp)));
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});

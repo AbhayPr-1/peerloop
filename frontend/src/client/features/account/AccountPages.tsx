@@ -17,6 +17,14 @@ function UserProfile() {
           <article className="profile-stat-card"><span>Active Listings</span><strong id="profile-listing-count">—</strong><small>Your live marketplace items</small></article>
           <article className="profile-stat-card"><span>Items Sold</span><strong id="profile-sold-count">—</strong><small>From on-chain history</small></article>
         </div>
+        <div id="profile-claimable-payments" className="profile-collection glass-panel hidden">
+          <div className="profile-collection-heading">
+            <div><span className="account-banner-eyebrow">Escrow payouts</span><h3>Available to withdraw</h3></div>
+            <strong id="profile-claimable-balance">0 ETH</strong>
+            <button id="profile-withdraw-payments-btn" type="button" className="modern-button-secondary">Withdraw</button>
+          </div>
+          <p className="text-sm text-gray-400">Settled escrow funds are credited here. Withdrawals are separate from settlement.</p>
+        </div>
         <div className="profile-collection glass-panel">
           <div className="profile-collection-heading">
             <div><span className="account-banner-eyebrow">Your activity</span><h3 id="profile-activity-heading">My Purchases</h3></div>

@@ -2,6 +2,7 @@
 
 const processedRefundUpdates = new Set<string>();
 const processedSaleUpdates = new Set<string>();
+const processedEscrowUpdates = new Set<string>();
 
 document.addEventListener('DOMContentLoaded', async () => {
   readOnlyProviderReady = initializeReadOnlyProvider();
@@ -53,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     socket.on('product_updated', (data) => {
-        if (!data || !['listed', 'sold', 'deleted', 'refunded'].includes(data.type)) return;
+        if (!data || !['listed', 'sold', 'deleted', 'refunded', 'released', 'disputed', 'vote'].includes(data.type)) return;
         console.info(`Socket: Received ${data.type} update for product ${data.id ?? 'unknown'}.`);
         if (data.type === 'sold' && data.id != null) {
             applyProductSoldUpdate(String(data.id), data.name, data.tx);
@@ -64,8 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             handleRealTimeCartRemoval(data.id, data.name);
         } else if (data.type === 'refunded' && data.id != null && data.escrowId != null) {
             applyRefundUpdate(String(data.id), String(data.escrowId));
+        } else if (data.type === 'released' && data.id != null && data.escrowId != null) {
+            applyEscrowUpdate(String(data.id), String(data.escrowId), 2);
+        } else if (data.type === 'disputed' && data.id != null && data.escrowId != null) {
+            applyEscrowUpdate(String(data.id), String(data.escrowId), 4);
+        } else if (data.type === 'vote' && data.id != null && data.escrowId != null) {
+            void refreshEscrowStateFromChain(String(data.id), String(data.escrowId));
         }
-        if (socket.connected && data.type !== 'refunded') fetchProducts(true);
+        if (socket.connected && !['refunded', 'released', 'disputed', 'vote'].includes(data.type)) fetchProducts(true);
     });
   } else {
     console.warn("Socket.IO client library not found. Real-time updates disabled.");
@@ -91,6 +98,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       readOnlyContract.on('EscrowRefunded', (escrowId, productId) => {
         applyRefundUpdate(String(productId), String(escrowId));
+      });
+      readOnlyContract.on('EscrowReleased', (escrowId, productId) => {
+        applyEscrowUpdate(String(productId), String(escrowId), 2);
+      });
+      readOnlyContract.on('EscrowDisputed', (escrowId, productId) => {
+        applyEscrowUpdate(String(productId), String(escrowId), 4);
+      });
+      readOnlyContract.on('EscrowResolutionVoted', (escrowId, productId) => {
+        void refreshEscrowStateFromChain(String(productId), String(escrowId));
       });
     } catch (error) {
       console.error('Could not subscribe to on-chain marketplace events:', error);
@@ -124,6 +140,7 @@ function applyProductSoldUpdate(productId, name = '', transactionHash = '') {
 
   removeProductFromMarketplace(productId);
   window.PeerLoopAccount?.removeListing(productId);
+  window.PeerLoopAccount?.invalidateHistory();
   handleRealTimeCartRemoval(productId, name);
   fetchProducts(false, 0, false);
 }
@@ -140,6 +157,41 @@ function applyRefundUpdate(productId, escrowId) {
   );
   window.PeerLoopAccount?.refreshEscrowState(productId, escrowId, 3);
   fetchProducts(false, 0, false);
+}
+
+function applyEscrowUpdate(productId, escrowId, state) {
+  const updateId = `${productId}:${escrowId}:${state}`;
+  if (processedEscrowUpdates.has(updateId)) return;
+  processedEscrowUpdates.add(updateId);
+  updateConfirmedEscrowState(
+    productId,
+    escrowId,
+    state,
+    currentUser?.walletAddress || ''
+  );
+  window.PeerLoopAccount?.refreshEscrowState(productId, escrowId, state);
+}
+
+async function refreshEscrowStateFromChain(productId, escrowId) {
+  try {
+    await readOnlyProviderReady;
+    if (!readOnlyContract) return;
+    let escrow;
+    if (readOnlyContract.escrowHistory) {
+      try {
+        escrow = await readOnlyContract.escrowHistory(escrowId);
+      } catch (error) {
+        if (error.code !== 'CALL_EXCEPTION') throw error;
+        escrow = await readOnlyContract.getEscrow(productId);
+      }
+    } else {
+      escrow = await readOnlyContract.getEscrow(productId);
+    }
+    const state = Number(escrow.state);
+    if (state >= 1 && state <= 5) applyEscrowUpdate(productId, escrowId, state);
+  } catch (error) {
+    console.warn(`Could not refresh escrow ${escrowId} after a resolution vote:`, error);
+  }
 }
 
 function initializeModalListeners() {
@@ -318,10 +370,25 @@ async function createListingFormHandler(e) {
     setButtonLoading(buttonElement, false);
     return showMessage("Please fill all fields and select at least one image.");
   }
-  const priceNumber = parseFloat(priceString);
-  if (isNaN(priceNumber) || priceNumber <= 0) {
+  const encoder = new TextEncoder();
+  if (encoder.encode(name).length > 100) {
+    setButtonLoading(buttonElement, false);
+    return showMessage("Product name must be 100 UTF-8 bytes or fewer.");
+  }
+  if (encoder.encode(description).length > 2000) {
+    setButtonLoading(buttonElement, false);
+    return showMessage("Product description must be 2,000 UTF-8 bytes or fewer.");
+  }
+  let priceInWei;
+  try {
+    priceInWei = ethers.BigNumber.from(window.PeerLoopMoney.toWei(priceString).toString());
+  } catch {
       setButtonLoading(buttonElement, false);
-      return showMessage("Price must be a number greater than 0.");
+      return showMessage("Price must be a valid positive ETH amount with at most 18 decimal places.");
+  }
+  if (priceInWei.isZero()) {
+    setButtonLoading(buttonElement, false);
+    return showMessage("Price must be greater than 0.");
   }
 
   let listingConfirmed = false;
@@ -335,8 +402,10 @@ async function createListingFormHandler(e) {
       imageUrls.push(uploadData.imageUrl);
     }
     const imageUrl = JSON.stringify(imageUrls);
+    if (encoder.encode(imageUrl).length > 4096) {
+      throw new Error("Image metadata must be 4,096 UTF-8 bytes or fewer.");
+    }
     setButtonLoading(buttonElement, true, 'Listing on Blockchain...');
-    const priceInWei = ethers.utils.parseEther(priceString);
     showMessage("Sending transaction... Please check your wallet.");
     const tx = await marketplaceContract.listProduct(name, description, priceInWei, imageUrl);
     const receipt = await tx.wait();

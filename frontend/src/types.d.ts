@@ -26,6 +26,25 @@ interface PeerLoopApiClient {
 
 interface Window {
   PEERLOOP_API_URL?: string;
+  PeerLoopMoney: {
+    toWei(value: string | number): bigint;
+    fromWei(value: bigint, decimals?: number): string;
+    formatEth(value: string | number, decimals?: number): string;
+    sumEth(values: Array<string | number>): bigint;
+    compareEth(left: string | number, right: string | number): number;
+  };
+  PeerLoopCheckout: {
+    processItems(
+      items: Array<{ _id: string; name: string }>,
+      purchaseItem: (item: { _id: string; name: string }) => Promise<{ transactionHash?: string }>
+    ): Promise<Array<{
+      item: { _id: string; name: string };
+      status: 'success' | 'failed';
+      transactionHash?: string;
+      error?: string;
+    }>>;
+  };
+  clearUserCart(): void;
   PeerLoopApi: PeerLoopApiClient;
   ethereum?: any;
   WalletDetection: {
@@ -41,6 +60,21 @@ interface Window {
     refreshEscrowState(productId: string, escrowId: string, state: number): void;
     updateListings(products: any[]): void;
     removeListing(productId: string): void;
+    getActivityRecords(
+      history: { purchased: any[]; sold: any[] },
+      view: string
+    ): any[];
+    shouldAutoOpenDisputeEscrow(
+      hasSellerDispute: boolean,
+      selectedView: string,
+      manuallySelected: boolean
+    ): boolean;
+    getDisputeVoteView(
+      votes: number,
+      isBuyer: boolean
+    ): { myVote: 'release' | 'refund' | null; otherVote: 'release' | 'refund' | null; choices: Array<'release' | 'refund'> };
+    invalidateHistory(): void;
+    shouldRefreshProfileHistory(hasCachedHistory: boolean, lastUpdatedAt: number, now?: number): boolean;
   };
   getWalletTransactionHistory(
     walletAddress: string,

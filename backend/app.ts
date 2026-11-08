@@ -45,15 +45,28 @@ export function createApp(options: AppOptions = {}) {
   app.use('/api/listing-metadata', listingMetadataRouter);
   app.use('/api/config', publicConfigRouter);
 
-  app.get('/health', (_req, res) => {
+  const liveHealth = (_req: express.Request, res: express.Response) => {
     res.set('Cache-Control', 'no-store');
-    res.json({
+    return res.json({
       status: 'ok',
       service: 'peerloop-backend',
-      timestamp: new Date().toISOString(),
-      database: databaseStatus()
+      timestamp: new Date().toISOString()
     });
-  });
+  };
+  const readyHealth = (_req: express.Request, res: express.Response) => {
+    res.set('Cache-Control', 'no-store');
+    const database = databaseStatus();
+    const ready = database === 'connected';
+    return res.status(ready ? 200 : 503).json({
+      status: ready ? 'ok' : 'unavailable',
+      service: 'peerloop-backend',
+      timestamp: new Date().toISOString(),
+      database
+    });
+  };
+  app.get('/health/live', liveHealth);
+  app.get('/health/ready', readyHealth);
+  app.get('/health', readyHealth);
 
   return app;
 }

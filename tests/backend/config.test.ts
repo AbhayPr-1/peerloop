@@ -30,3 +30,12 @@ test('backend config rejects invalid ports at startup', () => {
     assert.throws(() => createBackendConfig({ PORT }), /PORT must be a valid TCP port/);
   }
 });
+
+test('production config requires explicit database and frontend origins', () => {
+  const production = { NODE_ENV: 'production', JWT_SECRET: 'test-secret' };
+  assert.throws(() => createBackendConfig(production), /MONGO_URI must be explicitly configured/);
+  assert.throws(() => createBackendConfig({
+    ...production,
+    MONGO_URI: 'mongodb://database/peerloop'
+  }), /APP_ORIGIN must be explicitly configured/);
+});

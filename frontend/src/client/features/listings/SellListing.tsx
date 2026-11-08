@@ -7,15 +7,15 @@ export function SellListing() {
           <form id="create-listing-form" className="space-y-6">
             <div>
               <label htmlFor="product-name" className="block text-xl font-medium mb-2 text-neon-blue">Product Name</label>
-              <input type="text" id="product-name" placeholder="Cyberdeck 2077" required className="w-full p-3 rounded-xl auth-input" />
+              <input type="text" id="product-name" placeholder="Cyberdeck 2077" maxLength={100} required className="w-full p-3 rounded-xl auth-input" />
             </div>
             <div>
               <label htmlFor="product-desc" className="block text-xl font-medium mb-2 text-neon-blue">Description</label>
-              <textarea id="product-desc" rows={4} placeholder="A custom rig for hacking." required className="w-full p-3 rounded-xl auth-input" />
+              <textarea id="product-desc" rows={4} placeholder="A custom rig for hacking." maxLength={2000} required className="w-full p-3 rounded-xl auth-input" />
             </div>
             <div>
               <label htmlFor="product-price" className="block text-xl font-medium mb-2 text-neon-blue">Price (ETH)</label>
-              <input type="number" id="product-price" placeholder="0.0001" step="0.0001" min="0" required className="w-full p-3 rounded-xl auth-input" />
+              <input type="number" id="product-price" placeholder="0.0001" step="any" min="0" required className="w-full p-3 rounded-xl auth-input" />
             </div>
             <div>
               <span id="product-category-label" className="block text-xl font-medium mb-2 text-neon-blue">Category</span>

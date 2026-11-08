@@ -10,12 +10,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const hasValidPrivateKey = /^0x[0-9a-fA-F]{64}$/.test(PRIVATE_KEY ?? "");
+const configuredPrivateKey = process.env.PRIVATE_KEY?.trim();
+const normalizedPrivateKey = configuredPrivateKey && /^[0-9a-fA-F]{64}$/.test(configuredPrivateKey)
+  ? `0x${configuredPrivateKey}`
+  : configuredPrivateKey;
+const hasValidPrivateKey = /^0x[0-9a-fA-F]{64}$/.test(normalizedPrivateKey ?? "");
 
 export default defineConfig({
   plugins: [hardhatEthers, hardhatEthersChaiMatchers, hardhatMocha],
-  solidity: "0.8.9",
+  solidity: {
+    version: "0.8.9",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
+    },
+  },
   networks: {
     localhost: {
       type: "http",
@@ -28,7 +39,7 @@ export default defineConfig({
             type: "http",
             chainType: "l1",
             url: SEPOLIA_RPC_URL,
-            accounts: [PRIVATE_KEY],
+            accounts: [normalizedPrivateKey],
           },
         }
       : {}),
