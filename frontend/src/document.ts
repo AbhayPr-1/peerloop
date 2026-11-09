@@ -4,11 +4,11 @@ export const documentHtml = String.raw`<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PeerLoop</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23f0eee9'/%3E%3Cg fill='none' stroke='%2368704f' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m24 40-4 4a10 10 0 0 1-14-14l10-10a10 10 0 0 1 14 0'/%3E%3Cpath d='m40 24 4-4a10 10 0 0 1 14 14L48 44a10 10 0 0 1-14 0'/%3E%3Cpath d='m23 41 18-18'/%3E%3C/g%3E%3C/svg%3E">
+  <title>Peerloop | Decentralized P2P Marketplace</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230B132B'/%3E%3Cg fill='none' stroke='%2310B981' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='24' cy='32' r='10' stroke='%2310B981'/%3E%3Ccircle cx='40' cy='32' r='10' stroke='%23D4AF37'/%3E%3Cpath d='M28 25a10 10 0 0 1 8 0m0 14a10 10 0 0 1-8 0' stroke='%2334D399'/%3E%3C/g%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet" />
   <script src="js/ethers.umd.min.js"></script>
   <script src="js/socket.io.min.js"></script>

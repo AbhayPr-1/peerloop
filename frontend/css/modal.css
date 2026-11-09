@@ -1,26 +1,39 @@
+/* Peerloop Modal Styling */
+
 .auth-modal-content {
-  background-color: var(--dark-card);
-  border: 2px solid var(--neon-blue);
-  box-shadow: 0 0 20px var(--neon-blue);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  background-color: var(--dark-card) !important;
+  border: 1px solid var(--pl-border) !important;
+  border-radius: 1.5rem !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 30px var(--pl-accent-glow) !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
+              opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  max-height: 90vh;
+  overflow-y: auto;
 }
-.auth-input {
-  background-color: transparent;
-  border: 1px solid var(--neon-blue);
-  color: var(--text-color);
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  transition: color 0.3s ease, border-color 0.3s ease;
+
+#quick-view-modal,
+#auth-modal,
+#confirmation-modal {
+  background: rgba(6, 11, 20, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
-.auth-input:focus {
-  outline: none;
-  border-color: var(--neon-pink);
-  box-shadow: 0 0 10px var(--neon-pink);
+
+html[data-theme='light'] #quick-view-modal,
+html[data-theme='light'] #auth-modal,
+html[data-theme='light'] #confirmation-modal {
+  background: rgba(15, 23, 42, 0.55);
 }
-html[data-theme='light'] .auth-input {
-    color: var(--text-color);
-    border-color: var(--neon-blue);
+
+#close-modal-btn,
+#close-quick-view-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
 }
-html[data-theme='light'] .auth-input::placeholder {
-    color: #6c757d;
+
+#close-modal-btn:hover,
+#close-quick-view-btn:hover {
+  color: var(--pl-accent) !important;
 }

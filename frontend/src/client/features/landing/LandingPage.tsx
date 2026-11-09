@@ -1,29 +1,36 @@
 import { useEffect, type FormEvent } from 'react';
+import { NetworkScene3D } from './NetworkScene3D';
 
-const CONTACT_EMAIL = 'hello@peerloop.market';
+const CONTACT_EMAIL = 'contact@peerloop.market';
 
-const editorialImages = [
-  {
-    src: 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=1200&q=85',
-    alt: 'Sculptural mid-century chair in a quiet interior',
-    label: 'OBJECTS WITH A PAST',
-    title: 'A little more lived in.',
-    className: 'pl-editorial-item pl-editorial-item--large'
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=85',
-    alt: 'Classic watch photographed against a warm neutral background',
-    label: 'THE EVERYDAY',
-    title: 'Keep time beautifully.',
-    className: 'pl-editorial-item'
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1543076447-215ad9ba6923?auto=format&fit=crop&w=900&q=85',
-    alt: 'Well-kept leather accessories',
-    label: 'MADE TO CARRY ON',
-    title: 'Good things go places.',
-    className: 'pl-editorial-item pl-editorial-item--offset'
-  }
+function BrandIcon({ name }: { name: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    chip: <><rect x="6" y="6" width="12" height="12" rx="2" /><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4M10 10h4v4h-4z" /></>,
+    watch: <><rect x="8" y="6" width="8" height="12" rx="3" /><path d="m9 2 1 4m5-4-1 4m-5 12 1 4m5-4-1 4M12 9v3l2 1" /></>,
+    network: <><circle cx="12" cy="12" r="3" /><circle cx="5" cy="6" r="1.5" /><circle cx="19" cy="6" r="1.5" /><circle cx="5" cy="18" r="1.5" /><circle cx="19" cy="18" r="1.5" /><path d="m10 10-4-3m8 3 4-3m-8 7-4 3m8-3 4 3" /></>,
+    code: <><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-2-13-4 16" /></>,
+    device: <><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M10 6h4m-3 12h2" /></>,
+    prism: <><path d="m12 3 8 5v8l-8 5-8-5V8l8-5Z" /><path d="m4 8 8 5 8-5m-8 5v8" /></>,
+    escrow: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 5v2" /></>,
+    exchange: <><path d="M4 8h14l-3-3m5 11H6l3 3" /><path d="M18 8v2M6 14v2" /></>,
+    consensus: <><circle cx="12" cy="7" r="3" /><circle cx="5" cy="17" r="2.5" /><circle cx="19" cy="17" r="2.5" /><path d="m10 9-3.5 6m7.5-6 3.5 6M8 18h8" /></>,
+    ledger: <><path d="M4 6.5 12 3l8 3.5v11L12 21l-8-3.5v-11Z" /><path d="m4 6.5 8 3.5 8-3.5M12 10v11m-4-13 8 4" /></>
+  };
+
+  return (
+    <svg className="pl-brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      {paths[name] ?? paths.network}
+    </svg>
+  );
+}
+
+const categoriesPreview = [
+  { id: 'electronics', name: 'Electronics', count: 'Hardware & Circuits', icon: 'chip' },
+  { id: 'wearables', name: 'Wearables', count: 'Smart & Bio Devices', icon: 'watch' },
+  { id: 'cybernetics', name: 'Cybernetics', count: 'Neural & Modded Tech', icon: 'network' },
+  { id: 'data', name: 'Data & Software', count: 'Decentralized Code', icon: 'code' },
+  { id: 'gadgets', name: 'Gadgets', count: 'Field Tools & Devices', icon: 'device' },
+  { id: 'others', name: 'All Collectibles', count: 'Rare Goods & Pieces', icon: 'prism' }
 ];
 
 export function LandingPage() {
@@ -45,7 +52,7 @@ export function LandingPage() {
           entry.target.setAttribute('data-revealed', 'true');
           observer?.unobserve(entry.target);
         });
-      }, { threshold: 0.12, rootMargin: '0px 0px -36px 0px' });
+      }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
       revealTargets.forEach((element) => {
         if (element.dataset.reveal === 'hero') {
@@ -57,7 +64,6 @@ export function LandingPage() {
     }
 
     const progress = document.querySelector<HTMLElement>('.pl-scroll-progress');
-    const heroImage = page.querySelector<HTMLElement>('.pl-hero-art img');
     let frame = 0;
     const updateScrollEffects = () => {
       cancelAnimationFrame(frame);
@@ -65,11 +71,6 @@ export function LandingPage() {
         const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
         const progressValue = scrollableHeight > 0 ? window.scrollY / scrollableHeight : 0;
         progress?.style.setProperty('--scroll-progress', `${Math.min(1, Math.max(0, progressValue)) * 100}%`);
-
-        if (!reducedMotion && heroImage) {
-          const heroOffset = Math.min(window.scrollY, window.innerHeight) * 0.09;
-          heroImage.style.setProperty('--hero-parallax', `${heroOffset}px`);
-        }
       });
     };
 
@@ -92,9 +93,8 @@ export function LandingPage() {
     const name = String(formData.get('name') ?? '').trim();
     const email = String(formData.get('email') ?? '').trim();
     const message = String(formData.get('message') ?? '').trim();
-    const subject = encodeURIComponent(`A note for PeerLoop from ${name}`);
+    const subject = encodeURIComponent(`Peerloop Inquiry from ${name}`);
     const body = encodeURIComponent(`${message}\n\nFrom: ${name}\nEmail: ${email}`);
-
     window.location.assign(`mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`);
   };
 
@@ -102,218 +102,417 @@ export function LandingPage() {
     <main className="peerloop-home">
       <div className="pl-scroll-progress" aria-hidden="true" />
 
+      {/* 1. IMMERSIVE 3D HERO SECTION */}
       <section id="hero" className="pl-hero" data-reveal="hero" data-revealed="true">
-        <div className="pl-hero-copy">
-          <p className="pl-eyebrow"><span /> A blockchain-powered peer-to-peer marketplace</p>
-          <h1 className="pl-wordmark">PEERLOOP</h1>
-          <h2>Good things<br /><em>deserve another life.</em></h2>
-          <p className="pl-intro">
-            A more considered way to buy and sell pre-loved pieces. Meet the person behind the find,
-            exchange directly, and keep good things in circulation.
-          </p>
-          <div className="pl-chain-note" aria-label="PeerLoop uses Ethereum, the Sepolia network, and ETH payments">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2.8 5.7 12l6.3 3.4 6.3-3.4L12 2.8Z" />
-              <path d="m5.7 13.2 6.3 8 6.3-8-6.3 3.4-6.3-3.4Z" />
-            </svg>
-            <span><strong>Built on Ethereum</strong><small>Sepolia network <i /> ETH payments</small></span>
+        <div className="pl-hero-grid">
+          <div className="pl-hero-copy">
+            <div className="pl-network-badge" aria-label="Ethereum Sepolia test network">
+              <span className="network-dot pulse" />
+              <span>ETHEREUM SEPOLIA · SMART-CONTRACT MARKETPLACE</span>
+            </div>
+
+            <h1 className="pl-hero-title">
+              Trade Beyond <br />
+              <span className="pl-gradient-text">Boundaries.</span>
+            </h1>
+
+            <p className="pl-hero-subtitle">
+              A smarter way to discover, exchange, and transact through a connected peer-to-peer
+              marketplace with listings and purchases recorded through an Ethereum smart contract.
+              Buyers can release or refund an active escrow, or open a dispute for both parties to resolve.
+            </p>
+
+            <div className="pl-hero-actions">
+              <button id="hero-explore-btn" className="modern-button pl-hero-btn">
+                <span>Explore Marketplace</span>
+                <span aria-hidden="true">↗</span>
+              </button>
+              <button id="hero-sell-btn" className="modern-button-secondary pl-hero-btn">
+                <span>Start Selling</span>
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <div className="pl-hero-metrics">
+              <div className="pl-metric-item">
+                <span className="pl-metric-val">Ethereum</span>
+                <span className="pl-metric-label">Configured test network</span>
+              </div>
+              <div className="pl-metric-sep" />
+              <div className="pl-metric-item">
+                <span className="pl-metric-val">Buyer-led</span>
+                <span className="pl-metric-label">Escrow actions</span>
+              </div>
+            </div>
           </div>
-          <div className="pl-actions">
-            <button id="hero-explore-btn" className="pl-button pl-button-dark">
-              Explore marketplace <span aria-hidden="true">↗</span>
-            </button>
-            <button id="hero-sell-btn" className="pl-button pl-button-light">
-              Start selling <span aria-hidden="true">→</span>
-            </button>
+
+          <div className="pl-hero-visual">
+            <NetworkScene3D />
           </div>
-          <div className="pl-hero-note"><span className="pl-note-rule" />Direct exchange. Thoughtful reuse. On-chain transparency.</div>
         </div>
 
-        <figure className="pl-hero-art">
-          <div className="pl-hero-image">
-            <img
-              src="https://images.unsplash.com/photo-1490312278390-ab64016e0aa9?auto=format&fit=crop&w=1500&q=85"
-              alt="Sculptural white vases beneath flowering branches in a sunlit room"
-              fetchPriority="high"
-            />
-          </div>
-          <figcaption className="pl-image-note">
-            Found once. Loved all over again.
-          </figcaption>
-        </figure>
-
-        <a className="pl-scroll" href="#philosophy">
-          <span>SCROLL TO DISCOVER</span><i aria-hidden="true" />
+        <a className="pl-scroll-indicator" href="#philosophy" aria-label="Scroll to explore ecosystem">
+          <span>DISCOVER PROTOCOL</span>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
         </a>
       </section>
 
+      {/* 2. BLOCKCHAIN ECOSYSTEM */}
       <section id="services" className="pl-story">
-        <section id="philosophy" className="pl-philosophy" data-reveal="philosophy">
-          <div className="pl-section-index">THE PEERLOOP IDEA</div>
-          <div className="pl-philosophy-copy">
-            <p className="pl-kicker">A little less waste. A lot more meaning.</p>
-            <h2>The next chapter<br />is <em>closer than new.</em></h2>
-            <p>
-              The things we value deserve more than a one-way journey. PeerLoop brings people
-              together to pass useful, beautiful things on—making thoughtful finds more accessible
-              and giving every good piece somewhere to go next.
+        <section id="philosophy" className="pl-section pl-philosophy" data-reveal="philosophy">
+          <div className="pl-section-header">
+            <span className="account-banner-eyebrow">DECENTRALIZED ARCHITECTURE</span>
+            <h2 className="pl-section-title">Trade directly. <br /><em>See each on-chain step.</em></h2>
+            <p className="pl-section-intro">
+              Peerloop connects buyers and sellers through marketplace listings and a Solidity contract
+              that records purchases, escrow actions, and seller withdrawals on the configured network.
             </p>
-            <div className="pl-values">
-              <span>Keep good things in use</span>
-              <span>Buy with intention</span>
-              <span>Trade directly, person to person</span>
+          </div>
+
+          <div className="pl-feature-cards-grid">
+            <article className="pl-card pl-feature-card">
+              <div className="pl-card-icon"><BrandIcon name="escrow" /></div>
+              <h3>Contract-held payment</h3>
+              <p>
+                A purchase sends the exact listing price to the contract. The buyer can release the funds,
+                request a refund, or open a dispute while the escrow is active.
+              </p>
+            </article>
+
+            <article className="pl-card pl-feature-card">
+              <div className="pl-card-icon"><BrandIcon name="exchange" /></div>
+              <h3>Direct P2P Settlement</h3>
+              <p>
+                A released escrow is credited to the seller's contract balance. The seller can call the
+                withdrawal function to transfer that balance to their wallet.
+              </p>
+            </article>
+
+            <article className="pl-card pl-feature-card">
+              <div className="pl-card-icon"><BrandIcon name="consensus" /></div>
+              <h3>Dual-Party Dispute Voting</h3>
+              <p>
+                The buyer can mark an active escrow disputed. Buyer and seller may each vote; matching
+                votes determine whether the contract releases or refunds the payment.
+              </p>
+            </article>
+
+            <article className="pl-card pl-feature-card">
+              <div className="pl-card-icon"><BrandIcon name="ledger" /></div>
+              <h3>On-chain contract events</h3>
+              <p>
+                The contract emits events for listings, purchases, escrow changes, and withdrawals,
+                which can be inspected on the relevant network explorer.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        {/* 3. HOW PEERLOOP WORKS */}
+        <section id="how-it-works" className="pl-section pl-process" data-reveal="process">
+          <div className="pl-section-header">
+            <span className="account-banner-eyebrow">PROTOCOL LIFECYCLE</span>
+            <h2 className="pl-section-title">How Peer-to-Peer Trading Works</h2>
+            <p className="pl-section-intro">Connect a wallet, choose a listing, and review each contract action before signing.</p>
+          </div>
+
+          <div className="pl-steps-grid">
+            <div className="pl-step-item">
+              <div className="pl-step-num">01</div>
+              <h3>Connect Web3 Wallet</h3>
+              <p>Connect an injected wallet provider and sign in by approving the authentication request.</p>
+            </div>
+
+            <div className="pl-step-item">
+              <div className="pl-step-num">02</div>
+              <h3>Discover or List</h3>
+              <p>Browse available listings or create one with its description, price, and image.</p>
+            </div>
+
+            <div className="pl-step-item">
+              <div className="pl-step-num">03</div>
+              <h3>Deposit in Escrow</h3>
+              <p>Purchase at the listed ETH price. The contract records the purchase and creates an escrow.</p>
+            </div>
+
+            <div className="pl-step-item">
+              <div className="pl-step-num">04</div>
+              <h3>Confirm & Settle</h3>
+              <p>Confirm the delivery to release the funds, or request an instant buyer refund if the item was not fulfilled.</p>
             </div>
           </div>
-          <figure className="pl-philosophy-image">
-            <img
-              src="https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&w=1100&q=85"
-              alt="A warm home filled with plants and carefully collected objects"
-              loading="lazy"
-            />
-            <figcaption>A life well lived leaves lovely things behind.</figcaption>
-          </figure>
         </section>
 
-        <section className="pl-process" id="how-it-works" data-reveal="process">
-          <div className="pl-process-heading">
-            <p className="pl-section-index">SERVICES · HOW IT WORKS</p>
-            <h2>From one good<br />thing to <em>another.</em></h2>
-            <p className="pl-process-intro">A marketplace should feel as human as the exchange itself.</p>
+        {/* 4. MARKETPLACE DISCOVERY PREVIEW */}
+        <section className="pl-section pl-categories" data-reveal="categories">
+          <div className="pl-section-header">
+            <span className="account-banner-eyebrow">MARKETPLACE DISCOVERY</span>
+              <h2 className="pl-section-title">Explore listing categories</h2>
+            <p className="pl-section-intro">From custom hardware and wearables to codebases and digital artifacts.</p>
           </div>
-          <div className="pl-steps">
-            <article className="pl-service-card">
-              <h3>Discover</h3>
-              <p>Explore pieces listed by other people. Find something useful, lovely, or simply right for you.</p>
-            </article>
-            <article className="pl-service-card">
-              <h3>Connect</h3>
-              <p>Get to know the person behind the listing and choose the pieces you want to make your own.</p>
-            </article>
-            <article className="pl-service-card">
-              <h3>Exchange</h3>
-              <p>Complete purchases with ETH through a blockchain-powered marketplace built for transparent exchange.</p>
-            </article>
-          </div>
-        </section>
 
-        <section className="pl-trust" data-reveal="trust">
-          <figure className="pl-trust-image">
-            <img
-              src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1300&q=85"
-              alt="A carefully arranged collection of vintage clothing and accessories"
-              loading="lazy"
-            />
-            <figcaption>Good things, ready for their next owner.</figcaption>
-          </figure>
-          <div className="pl-trust-copy">
-            <p className="pl-section-index">FEATURES THAT BUILD TRUST</p>
-            <h2>Personal by nature.<br /><em>Transparent by design.</em></h2>
-            <p>
-              PeerLoop connects buyers and sellers directly, with wallet-based identity and
-              blockchain-powered transactions. Less distance between people—and a clearer view of
-              every exchange.
-            </p>
-            <ul className="pl-feature-grid">
-              <li><div><h3>Direct trading</h3><p>Buy and sell person to person.</p></div></li>
-              <li><div><h3>Escrow payments</h3><p>Funds stay held until the buyer releases or refunds.</p></div></li>
-              <li><div><h3>On-chain records</h3><p>Purchases and escrow actions are recorded on Sepolia.</p></div></li>
-              <li><div><h3>Wallet identity</h3><p>Connect a wallet to make marketplace transactions.</p></div></li>
-              <li><div><h3>Keep goods moving</h3><p>Give useful, well-loved pieces another chapter.</p></div></li>
-            </ul>
-          </div>
-        </section>
-
-        <section className="pl-market" data-reveal="market">
-          <div className="pl-market-heading">
-            <div>
-              <p className="pl-section-index">THE PEERLOOP EXPERIENCE</p>
-              <h2>Good things<br /><em>find good people.</em></h2>
-            </div>
-            <button
-              id="market-edit-btn"
-              className="pl-text-link"
-              onClick={() => document.getElementById('hero-explore-btn')?.click()}
-            >
-              Explore marketplace <span aria-hidden="true">↗</span>
-            </button>
-          </div>
-          <p className="pl-editorial-note">A few illustrative finds, not live listings.</p>
-          <div className="pl-editorial-grid">
-            {editorialImages.map((item) => (
-              <article className={item.className} key={item.label}>
-                <div className="pl-editorial-image">
-                  <img src={item.src} alt={item.alt} loading="lazy" />
-                </div>
-                <p>{item.label}</p>
-                <h3>{item.title}</h3>
-              </article>
+          <div className="pl-categories-grid">
+            {categoriesPreview.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                className="pl-cat-card"
+                onClick={() => {
+                  document.getElementById('hero-explore-btn')?.click();
+                  window.setTimeout(() => {
+                    document.querySelector<HTMLAnchorElement>(`#category-filter-options a[data-value="${cat.id}"]`)?.click();
+                  }, 0);
+                }}
+              >
+                <span className="pl-cat-icon"><BrandIcon name={cat.icon} /></span>
+                <span className="pl-cat-name">{cat.name}</span>
+                <span className="pl-cat-desc">{cat.count}</span>
+              </button>
             ))}
           </div>
         </section>
-      </section>
 
-      <section className="pl-manifesto" data-reveal="manifesto">
-        <p>THE NEXT CHAPTER STARTS HERE</p>
-        <h2>Pass it on.<br /><em>Keep it going.</em></h2>
-        <button
-          className="pl-button pl-button-ivory"
-          onClick={() => document.getElementById('hero-explore-btn')?.click()}
-        >
-          Find something worth keeping <span aria-hidden="true">↗</span>
-        </button>
-      </section>
-
-      <section className="pl-contact" id="contact" data-reveal="contact">
-        <div className="pl-contact-copy">
-          <p className="pl-section-index">SAY HELLO</p>
-          <h2>Good things<br /><em>start with a note.</em></h2>
-          <p>Questions, ideas, or something lovely to pass along? We’d love to hear from you.</p>
-          <a className="pl-contact-link" href={`mailto:${CONTACT_EMAIL}`}>
-            {CONTACT_EMAIL} <span aria-hidden="true">↗</span>
-          </a>
-        </div>
-        <form className="pl-contact-form" onSubmit={handleContactSubmit}>
-          <label>
-            <span>Your name</span>
-            <input name="name" type="text" autoComplete="name" placeholder="How should we address you?" required />
-          </label>
-          <label>
-            <span>Email address</span>
-            <input name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
-          </label>
-          <label>
-            <span>Your message</span>
-            <textarea name="message" rows={4} placeholder="What’s on your mind?" required />
-          </label>
-          <button className="pl-button pl-button-dark" type="submit">
-            Open a message to PeerLoop <span aria-hidden="true">↗</span>
-          </button>
-          <p className="pl-form-note">Your email app will open with your message addressed to PeerLoop.</p>
-        </form>
-      </section>
-
-      <footer className="pl-footer">
-        <div className="pl-footer-main">
-          <div className="pl-footer-about">
-            <a className="pl-footer-brand" href="#hero">PEERLOOP</a>
-            <p>A more considered marketplace.<br />Good things deserve another life.</p>
+        {/* 5. BLOCKCHAIN TRANSACTION JOURNEY */}
+        <section className="pl-section pl-journey" data-reveal="journey">
+          <div className="pl-section-header">
+            <span className="account-banner-eyebrow">ON-CHAIN STATE MACHINE</span>
+            <h2 className="pl-section-title">The Blockchain Transaction Journey</h2>
+            <p className="pl-section-intro">
+              Understand the transparent state transitions executed by the Peerloop smart contract.
+            </p>
           </div>
-          <nav className="pl-footer-links" aria-label="Footer navigation">
-            <div>
-              <span>EXPLORE</span>
-              <button onClick={() => document.getElementById('hero-explore-btn')?.click()}>Marketplace <i>↗</i></button>
-              <button onClick={() => document.getElementById('hero-sell-btn')?.click()}>Start selling <i>↗</i></button>
+
+          <div className="pl-journey-diagram">
+            <div className="pl-journey-node">
+              <div className="pl-journey-pill">BUYER DEPOSIT</div>
+              <p>Buyer initiates purchase. Exact ETH is locked in escrow contract.</p>
+              <span className="pl-state-tag">EscrowState: Created</span>
             </div>
-            <div>
-              <span>PEERLOOP</span>
-              <a href="#philosophy">Our philosophy</a>
-              <a href="#how-it-works">How it works</a>
-              <a href="#contact">Contact us</a>
+
+            <div className="pl-journey-arrow">→</div>
+
+            <div className="pl-journey-node">
+              <div className="pl-journey-pill">SELLER FULFILLMENT</div>
+              <p>Seller delivers physical or digital goods to the buyer.</p>
+              <span className="pl-state-tag">EscrowState: Created</span>
             </div>
-          </nav>
-        </div>
-        <div className="pl-footer-bottom">
-          <a href="#hero">Back to top ↑</a>
+
+            <div className="pl-journey-arrow">→</div>
+
+            <div className="pl-journey-node">
+              <div className="pl-journey-pill">BUYER CONFIRMATION</div>
+              <p>The buyer can release or refund the escrow, or open a dispute.</p>
+              <span className="pl-state-tag">Released / Refunded / Disputed</span>
+            </div>
+
+            <div className="pl-journey-arrow">→</div>
+
+            <div className="pl-journey-node">
+              <div className="pl-journey-pill">SELLER WITHDRAWAL</div>
+              <p>When released, funds enter the seller's pending withdrawal balance.</p>
+              <span className="pl-state-tag">Pending withdrawal</span>
+            </div>
+          </div>
+        </section>
+
+        {/* 6. ESCROW SAFEGUARD EXPERIENCE */}
+        <section className="pl-section pl-escrow-deepdive" data-reveal="escrow">
+          <div className="pl-section-header">
+            <span className="account-banner-eyebrow">ESCROW CONTRACT FLOW</span>
+            <h2 className="pl-section-title">Escrow actions and outcomes</h2>
+            <p className="pl-section-intro">
+              The contract defines buyer actions and stores their resulting escrow states on-chain. It does not verify physical delivery.
+            </p>
+          </div>
+
+          <div className="pl-escrow-features">
+            <div className="pl-card pl-escrow-card">
+              <h3>Buyer refund action</h3>
+              <p>
+                For an escrow in the created state, the buyer can call the refund function. The amount is credited
+                to the buyer's pending contract balance and must then be withdrawn.
+              </p>
+              <div className="pl-escrow-status-pill text-emerald-400">Refund changes listing availability</div>
+            </div>
+
+            <div className="pl-card pl-escrow-card">
+              <h3>Consensus Dispute Resolution</h3>
+              <p>
+                The buyer may open a dispute. Buyer and seller can each vote to release or refund; matching
+                votes trigger the corresponding contract state change.
+              </p>
+              <div className="pl-escrow-status-pill text-amber-400">Both parties must agree on an outcome</div>
+            </div>
+
+            <div className="pl-card pl-escrow-card">
+              <h3>Independent Pull-Payment Architecture</h3>
+              <p>
+                Released amounts are recorded as pending withdrawals. The seller calls the contract to request
+                transfer of that balance to their wallet.
+              </p>
+              <div className="pl-escrow-status-pill text-blue-400">Withdrawal is a separate transaction</div>
+            </div>
+          </div>
+        </section>
+
+        {/* 7. GETTING STARTED GUIDE */}
+        <section className="pl-section pl-getstarted" data-reveal="getstarted">
+          <div className="pl-section-header">
+            <span className="account-banner-eyebrow">ONBOARDING GUIDE</span>
+            <h2 className="pl-section-title">Getting Started on Sepolia</h2>
+            <p className="pl-section-intro">Use Sepolia test ETH to try the marketplace contract without spending mainnet ETH.</p>
+          </div>
+
+          <div className="pl-onboarding-steps">
+            <div className="pl-onboard-card">
+              <span className="pl-onboard-num">Step 1</span>
+              <h4>Obtain Sepolia Testnet ETH</h4>
+              <p>Acquire Sepolia test ETH from a faucet. Testnet tokens have no mainnet value, but wallet signatures and contract calls still require care.</p>
+            </div>
+            <div className="pl-onboard-card">
+              <span className="pl-onboard-num">Step 2</span>
+              <h4>Connect & Sign Challenge</h4>
+              <p>Choose Connect Wallet and review the authentication request in your wallet before signing.</p>
+            </div>
+            <div className="pl-onboard-card">
+              <span className="pl-onboard-num">Step 3</span>
+              <h4>List or Transact</h4>
+              <p>Explore listings, purchase with escrow, or sell your gear to experience transparent peer-to-peer exchange.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* 8. FINAL CALL TO ACTION */}
+        <section className="pl-section pl-final-cta" data-reveal="cta">
+          <div className="pl-cta-box glass-panel">
+            <span className="account-banner-eyebrow">PEER-TO-PEER MARKETPLACE</span>
+            <h2>Trade Beyond Boundaries.</h2>
+            <p>Browse listings or create one of your own on the configured Ethereum test network.</p>
+            <div className="flex gap-4 justify-center flex-wrap mt-6">
+              <button
+                className="modern-button"
+                onClick={() => document.getElementById('hero-explore-btn')?.click()}
+              >
+                Launch Marketplace ↗
+              </button>
+              <button
+                className="modern-button-secondary"
+                onClick={() => document.getElementById('hero-sell-btn')?.click()}
+              >
+                Create Listing →
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* 9. CONTACT & QUESTIONS */}
+        <section className="pl-section pl-contact" id="contact" data-reveal="contact">
+          <div className="pl-contact-grid">
+            <div className="pl-contact-info">
+              <span className="account-banner-eyebrow">DEVELOPER CONTACT</span>
+              <h2>Have Questions or Ideas?</h2>
+              <p>Connect with the Peerloop engineering team regarding smart contracts, security, or integrations.</p>
+              <div className="mt-4">
+                <a className="text-neon-blue font-mono hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
+                  {CONTACT_EMAIL} ↗
+                </a>
+              </div>
+            </div>
+
+            <form className="pl-contact-form" onSubmit={handleContactSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="contact-name" className="sidebar-label">Your Name</label>
+                  <input
+                    id="contact-name"
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Enter your name"
+                    required
+                    className="w-full auth-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="contact-email" className="sidebar-label">Email Address</label>
+                  <input
+                    id="contact-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    required
+                    className="w-full auth-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="contact-message" className="sidebar-label">Message</label>
+                  <textarea
+                    id="contact-message"
+                    name="message"
+                    rows={4}
+                    placeholder="Describe your inquiry..."
+                    required
+                    className="w-full auth-input"
+                  />
+                </div>
+                <button className="modern-button w-full" type="submit">
+                  Send Message via Email ↗
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </section>
+
+      {/* 10. PREMIUM WEB3 FOOTER */}
+      <footer className="pl-footer">
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          <div className="pl-footer-grid">
+            <div className="pl-footer-brand-col">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold font-mono">
+                  ∞
+                </span>
+                <span className="text-xl font-bold tracking-wider text-neon-blue font-mono">PEERLOOP</span>
+              </div>
+              <p className="text-sm text-gray-400 leading-relaxed max-w-sm">
+                Peer-to-peer listings and purchases use an Ethereum smart contract escrow flow.
+                Review the transaction details and network before signing.
+              </p>
+            </div>
+
+            <div className="pl-footer-links-col">
+              <h4 className="sidebar-label mb-3">Marketplace</h4>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li><button className="hover:text-neon-blue transition-colors text-left" onClick={() => document.getElementById('hero-explore-btn')?.click()}>Browse Gears</button></li>
+                <li><button className="hover:text-neon-blue transition-colors text-left" onClick={() => document.getElementById('hero-sell-btn')?.click()}>Start Selling</button></li>
+                <li><button className="hover:text-neon-blue transition-colors text-left" onClick={() => document.getElementById('nav-escrow-btn')?.click()}>Escrow Status</button></li>
+              </ul>
+            </div>
+
+            <div className="pl-footer-links-col">
+              <h4 className="sidebar-label mb-3">Protocol</h4>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li><a href="#philosophy" className="hover:text-neon-blue transition-colors">Architecture</a></li>
+                <li><a href="#how-it-works" className="hover:text-neon-blue transition-colors">How it works</a></li>
+              </ul>
+            </div>
+
+            <div className="pl-footer-links-col">
+              <h4 className="sidebar-label mb-3">Community & Support</h4>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li><a href="#contact" className="hover:text-neon-blue transition-colors">Contact Support</a></li>
+                <li><a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-neon-blue transition-colors">{CONTACT_EMAIL}</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="pl-footer-bottom mt-12 pt-6 border-t border-gray-700/40 flex justify-between items-center flex-wrap gap-4 text-xs text-gray-500">
+            <a href="#hero" className="hover:text-neon-blue transition-colors">Back to top ↑</a>
+          </div>
         </div>
       </footer>
     </main>
