@@ -138,7 +138,7 @@ function showQuickView(product) {
                 </div>
                 <div class="product-card-meta mb-6 flex items-center justify-between">
                     <span class="product-card-price text-3xl text-neon-pink font-bold">${window.PeerLoopMoney.formatEth(product.price)} ETH</span>
-                    <span class="product-card-category text-xs px-3 py-1 rounded-full bg-gray-700/70 border border-gray-600/40 text-gray-300">${escapeHtml(displayCategory)}</span>
+                    <span class="product-card-category">${escapeHtml(displayCategory)}</span>
                 </div>
                 <div class="product-card-actions grid grid-cols-2 gap-3 mt-auto">${actionButtons}</div>
             </div>

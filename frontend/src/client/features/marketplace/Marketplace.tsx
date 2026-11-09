@@ -87,7 +87,6 @@ export function Marketplace() {
                   <span className="network-dot" />
                   <span>Sepolia Testnet</span>
                 </div>
-                <span className="text-xs text-gray-400">11155111</span>
               </div>
             </div>
 

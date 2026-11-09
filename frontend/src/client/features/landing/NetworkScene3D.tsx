@@ -21,7 +21,7 @@ export class NetworkSceneErrorBoundary extends Component<ErrorBoundaryProps, Err
   }
 
   componentDidCatch(error: unknown) {
-    console.warn('NetworkScene3D encountered a WebGL error; gracefully rendering CSS constellation fallback:', error);
+    console.warn('NetworkScene3D WebGL error; falling back:', error);
   }
 
   render() {
@@ -34,7 +34,7 @@ export class NetworkSceneErrorBoundary extends Component<ErrorBoundaryProps, Err
 
 function FallbackConstellation() {
   return (
-    <div className="pl-3d-fallback" aria-hidden="true">
+    <div className="pl-3d-fallback fixed inset-0 pointer-events-none -z-10" aria-hidden="true">
       <div className="pl-fallback-core" />
     </div>
   );
@@ -52,251 +52,361 @@ function WebGLScene() {
     let animId = 0;
     let isDisposed = false;
 
-    // Safely check dimensions
-    const width = container.clientWidth || 400;
-    const height = container.clientHeight || 400;
+    const getWidth = () => window.innerWidth || 800;
+    const getHeight = () => window.innerHeight || 600;
 
     try {
-      // Create canvas dynamically so it never has a pre-existing conflicting context
       const canvas = document.createElement('canvas');
-      canvas.className = 'pl-3d-canvas';
+      canvas.className = 'pl-3d-canvas-full';
+      canvas.style.position = 'absolute';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.pointerEvents = 'none';
+      canvas.style.zIndex = '-1';
       container.appendChild(canvas);
 
       renderer = new THREE.WebGLRenderer({
         canvas,
         alpha: true,
         antialias: true,
-        powerPreference: 'default'
+        powerPreference: 'high-performance'
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      renderer.setSize(width, height);
+      renderer.setSize(getWidth(), getHeight());
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.1;
+      renderer.toneMappingExposure = 1.35;
 
       const scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2(0x060b14, 0.032);
+      scene.fog = new THREE.FogExp2(0x060b14, 0.020);
 
-      const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-      camera.position.set(0, 0, 13);
+      const isMobileInitial = getWidth() < 768;
+      const camera = new THREE.PerspectiveCamera(
+        isMobileInitial ? 52 : 45,
+        getWidth() / getHeight(),
+        0.1,
+        100
+      );
+      camera.position.set(0, 3.5, isMobileInitial ? 9.5 : 11.5);
 
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      // Lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+      // --- HIGH-CONTRAST CINEMATIC LIGHTING ---
+      const ambientLight = new THREE.AmbientLight(0x0b1d3a, 0.8);
       scene.add(ambientLight);
 
-      const pointLight = new THREE.PointLight(0x34d399, 3.2, 25);
-      pointLight.position.set(0, 0, 2);
-      scene.add(pointLight);
+      const heroLight = new THREE.PointLight(0x00f3ff, 5.0, 22);
+      heroLight.position.set(2, 3.5, 4);
+      scene.add(heroLight);
 
-      const goldLight = new THREE.DirectionalLight(0xd4af37, 1.4);
-      goldLight.position.set(5, 6, 6);
-      scene.add(goldLight);
+      const midLight = new THREE.PointLight(0x10b981, 4.2, 24);
+      midLight.position.set(-3, -4.0, 4);
+      scene.add(midLight);
 
-      const rimLight = new THREE.DirectionalLight(0x34d399, 1.2);
-      rimLight.position.set(-6, -4, -3);
-      scene.add(rimLight);
+      const lowerLight = new THREE.PointLight(0xf59e0b, 3.8, 24);
+      lowerLight.position.set(3, -11.0, 4);
+      scene.add(lowerLight);
 
-      // Root cluster group
-      const cluster = new THREE.Group();
-      scene.add(cluster);
+      const specularRim = new THREE.DirectionalLight(0x38bdf8, 2.5);
+      specularRim.position.set(6, 12, 10);
+      scene.add(specularRim);
 
-      // 1. Central Cryptographic Exchange Core (Torus Knot)
-      const coreGeo = new THREE.TorusKnotGeometry(1.85, 0.42, 100, 24, 2, 3);
+      // --- VERTICAL 3D BLOCKCHAIN SPINE WITH INTERLOCKING CHAIN LINKS ---
+      const spineGroup = new THREE.Group();
+      scene.add(spineGroup);
+
+      // Spine spline curve running vertically down the entire landing page (Y: +5.0 down to -16.0)
+      const spinePoints = [
+        new THREE.Vector3(2.2, 4.8, -1.0),
+        new THREE.Vector3(2.8, 2.5, -0.5),
+        new THREE.Vector3(1.8, 0.2, 0.2),
+        new THREE.Vector3(-1.8, -2.2, 0.0),
+        new THREE.Vector3(-2.6, -4.8, -0.6),
+        new THREE.Vector3(1.6, -7.2, -0.2),
+        new THREE.Vector3(2.4, -9.8, 0.2),
+        new THREE.Vector3(-1.6, -12.2, -0.4),
+        new THREE.Vector3(0.0, -15.5, -0.8)
+      ];
+
+      const spineCurve = new THREE.CatmullRomCurve3(spinePoints, false, 'centripetal', 0.5);
+
+      // 1. Multi-layered blockchain hypercube nodes along the spine
+      // Circular chain/disc details intentionally removed to keep the cube-driven scene.
+
+      // 2. 18 Multi-Layered Translucent Blockchain Hypercube Nodes
+      interface SpineBlock {
+        group: THREE.Group;
+        outerFrame: THREE.LineSegments;
+        glassMesh: THREE.Mesh;
+        coreMesh: THREE.Mesh;
+        basePos: THREE.Vector3;
+        rotSpeedX: number;
+        rotSpeedY: number;
+        phase: number;
+      }
+
+      const spineBlocks: SpineBlock[] = [];
+      const blockCount = 18;
+
+      const outerBoxGeo = new THREE.BoxGeometry(1.05, 1.05, 1.05);
+      const outerEdgesGeo = new THREE.EdgesGeometry(outerBoxGeo);
+      const outerWireMat = new THREE.LineBasicMaterial({ color: 0x38bdf8 });
+
+      const glassBoxGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+      const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x072746,
+        metalness: 0.92,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.68,
+        emissive: 0x059669,
+        emissiveIntensity: 0.5,
+        side: THREE.DoubleSide
+      });
+
+      const coreBoxGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
       const coreMat = new THREE.MeshStandardMaterial({
-        color: 0x168567,
-        roughness: 0.3,
-        metalness: 0.65,
-        emissive: 0x10b981,
-        emissiveIntensity: 0.5
-      });
-      const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-      cluster.add(coreMesh);
-
-      // 2. Decentralized Network Nodes (Metallic Spheres)
-      const nodeCount = 28;
-      const nodePositions: THREE.Vector3[] = [];
-      const nodeGroup = new THREE.Group();
-      cluster.add(nodeGroup);
-
-      const nodeGeo = new THREE.SphereGeometry(0.12, 12, 12);
-      const nodeMat = new THREE.MeshStandardMaterial({
-        color: 0xf2cf66,
-        metalness: 0.72,
-        roughness: 0.25,
-        emissive: 0x34d399,
-        emissiveIntensity: 0.55
+        color: 0xf59e0b,
+        metalness: 0.8,
+        roughness: 0.2,
+        emissive: 0xd97706,
+        emissiveIntensity: 0.9
       });
 
-      for (let i = 0; i < nodeCount; i++) {
-        const phi = Math.acos(-1 + (2 * i) / nodeCount);
-        const theta = Math.sqrt(nodeCount * Math.PI) * phi;
-        const radius = 3.2 + (Math.sin(i * 1.5) * 0.9);
+      for (let i = 0; i < blockCount; i++) {
+        const u = i / (blockCount - 1);
+        const point = spineCurve.getPoint(u);
 
-        const pos = new THREE.Vector3(
-          radius * Math.cos(theta) * Math.sin(phi),
-          radius * Math.sin(theta) * Math.sin(phi),
-          radius * Math.cos(phi)
-        );
-        nodePositions.push(pos);
+        const blockGroup = new THREE.Group();
+        blockGroup.position.copy(point);
 
-        const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat);
-        nodeMesh.position.copy(pos);
-        nodeGroup.add(nodeMesh);
+        const outerFrame = new THREE.LineSegments(outerEdgesGeo, outerWireMat);
+        const glassMesh = new THREE.Mesh(glassBoxGeo, glassMat);
+        const coreMesh = new THREE.Mesh(coreBoxGeo, coreMat);
+
+        blockGroup.add(outerFrame);
+        blockGroup.add(glassMesh);
+        blockGroup.add(coreMesh);
+        spineGroup.add(blockGroup);
+
+        spineBlocks.push({
+          group: blockGroup,
+          outerFrame,
+          glassMesh,
+          coreMesh,
+          basePos: point.clone(),
+          rotSpeedX: 0.25 + (i % 3) * 0.1,
+          rotSpeedY: 0.35 + (i % 2) * 0.15,
+          phase: i * 0.7
+        });
       }
 
-      // 3. Connecting Network Edges
-      const linePositions: number[] = [];
-      const maxDistance = 2.4;
-
-      for (let i = 0; i < nodeCount; i++) {
-        for (let j = i + 1; j < nodeCount; j++) {
-          const d = nodePositions[i].distanceTo(nodePositions[j]);
-          if (d < maxDistance) {
-            linePositions.push(
-              nodePositions[i].x, nodePositions[i].y, nodePositions[i].z,
-              nodePositions[j].x, nodePositions[j].y, nodePositions[j].z
-            );
-          }
-        }
-      }
-
-      const linesGeo = new THREE.BufferGeometry();
-      linesGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
-      const linesMat = new THREE.LineBasicMaterial({
-        color: 0x6ee7b7,
+      // 3. Moving High-Luminance Data Packets along the chain
+      const packetCount = 36;
+      const packetPositions = new Float32Array(packetCount * 3);
+      const packetGeo = new THREE.BufferGeometry();
+      packetGeo.setAttribute('position', new THREE.BufferAttribute(packetPositions, 3));
+      const packetMat = new THREE.PointsMaterial({
+        color: 0xf59e0b,
+        size: 0.22,
         transparent: true,
-        opacity: 0.42
+        opacity: 0.95
       });
-      const networkLines = new THREE.LineSegments(linesGeo, linesMat);
-      cluster.add(networkLines);
+      const packetPoints = new THREE.Points(packetGeo, packetMat);
+      spineGroup.add(packetPoints);
 
-      // 4. Ambient Data Particle Cloud
-      const particleCount = 220;
+      const packetU = new Float32Array(packetCount);
+      const packetSpeed = new Float32Array(packetCount);
+      for (let p = 0; p < packetCount; p++) {
+        packetU[p] = Math.random();
+        packetSpeed[p] = 0.07 + Math.random() * 0.12;
+      }
+
+      // 4. Floating Ambient Particle Field
+      const particleCount = 450;
       const particlePositions = new Float32Array(particleCount * 3);
-      for (let i = 0; i < particleCount * 3; i += 3) {
-        particlePositions[i] = (Math.random() - 0.5) * 16;
-        particlePositions[i + 1] = (Math.random() - 0.5) * 14;
-        particlePositions[i + 2] = (Math.random() - 0.5) * 10;
+      for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] = (Math.random() - 0.5) * 18;
+        particlePositions[i * 3 + 1] = 6.0 - Math.random() * 26.0;
+        particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 12;
       }
-
-      const particlesGeo = new THREE.BufferGeometry();
-      particlesGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-      const particlesMat = new THREE.PointsMaterial({
+      const particleGeo = new THREE.BufferGeometry();
+      particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+      const particleMat = new THREE.PointsMaterial({
         color: 0x6ee7b7,
-        size: 0.06,
+        size: 0.065,
         transparent: true,
-        opacity: 0.72
+        opacity: 0.75
       });
-      const particleField = new THREE.Points(particlesGeo, particlesMat);
-      scene.add(particleField);
+      const particleCloud = new THREE.Points(particleGeo, particleMat);
+      scene.add(particleCloud);
 
-      // Parallax tracking
+      // --- MOUSE & SCROLL STATE TRACKING ---
       let mouseX = 0;
       let mouseY = 0;
-      let targetX = 0;
-      let targetY = 0;
+      let targetMouseX = 0;
+      let targetMouseY = 0;
 
-      const onPointerMove = (e: MouseEvent) => {
-        const rect = container.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-        targetX = x * 0.8;
-        targetY = y * 0.6;
+      let targetScrollFraction = 0;
+      let currentScrollFraction = 0;
+
+      const handleScroll = () => {
+        const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        targetScrollFraction = Math.max(0, Math.min(1, window.scrollY / maxScroll));
       };
 
-      window.addEventListener('mousemove', onPointerMove, { passive: true });
+      const handleMouseMove = (e: MouseEvent) => {
+        targetMouseX = (e.clientX / window.innerWidth) * 2 - 1;
+        targetMouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+      };
 
-      // Handle Resize
-      const onResize = () => {
-        if (!container || !renderer || !camera || isDisposed) return;
-        const w = container.clientWidth || 300;
-        const h = container.clientHeight || 300;
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      window.addEventListener('mousemove', handleMouseMove, { passive: true });
+      handleScroll();
+      currentScrollFraction = targetScrollFraction;
+
+      const handleResize = () => {
+        if (!renderer || !camera || isDisposed) return;
+        const w = getWidth();
+        const h = getHeight();
+        const isMobile = w < 768;
         camera.aspect = w / h;
+        camera.fov = isMobile ? 52 : 45;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h);
       };
 
-      const resizeObserver = new ResizeObserver(onResize);
-      resizeObserver.observe(container);
+      window.addEventListener('resize', handleResize);
 
-      // Pause when scrolled offscreen
       let isVisible = true;
       const intersectionObserver = new IntersectionObserver(
         ([entry]) => {
           isVisible = entry.isIntersecting;
+          if (isVisible && !document.hidden) {
+            cancelAnimationFrame(animId);
+            animate();
+          }
+          else cancelAnimationFrame(animId);
         },
-        { threshold: 0.05 }
+        { threshold: 0.02 }
       );
       intersectionObserver.observe(container);
 
-      // Render loop
+      // --- ANIMATION LOOP ---
       const clock = new THREE.Clock();
+      let lastTime = performance.now();
 
       const animate = () => {
-        if (isDisposed) return;
-        animId = requestAnimationFrame(animate);
+        if (isDisposed || document.hidden || !isVisible) return;
+        if (!reducedMotion) animId = requestAnimationFrame(animate);
         if (!isVisible || !renderer) return;
 
-        const delta = clock.getDelta();
+        const now = performance.now();
+        const delta = Math.min(0.1, Math.max(0.001, (now - lastTime) / 1000));
+        lastTime = now;
+        const elapsedTime = clock.getElapsedTime();
+
+        mouseX += (targetMouseX - mouseX) * 0.06;
+        mouseY += (targetMouseY - mouseY) * 0.06;
+
+        const scrollSmooth = 1 - Math.exp(-delta * 7.5);
+        currentScrollFraction = THREE.MathUtils.lerp(currentScrollFraction, targetScrollFraction, scrollSmooth);
 
         if (!reducedMotion) {
-          coreMesh.rotation.x += delta * 0.22;
-          coreMesh.rotation.y += delta * 0.35;
+          // Camera vertical tracking down the page
+          const isMobile = getWidth() < 768;
+          const startCamY = isMobile ? 3.0 : 3.5;
+          const endCamY = -14.0;
+          const targetCamY = THREE.MathUtils.lerp(startCamY, endCamY, currentScrollFraction);
 
-          nodeGroup.rotation.y += delta * 0.08;
-          networkLines.rotation.y += delta * 0.08;
-          particleField.rotation.y += delta * 0.02;
+          const startCamZ = isMobile ? 9.5 : 11.5;
+          const targetCamZ = THREE.MathUtils.lerp(startCamZ, 12.5, currentScrollFraction);
 
-          mouseX += (targetX - mouseX) * 0.05;
-          mouseY += (targetY - mouseY) * 0.05;
+          const parallaxX = mouseX * 0.65;
+          const parallaxY = mouseY * 0.45;
 
-          cluster.rotation.y = mouseX * 0.45;
-          cluster.rotation.x = -mouseY * 0.35;
+          camera.position.x = parallaxX;
+          camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamY + parallaxY, scrollSmooth);
+          camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamZ, scrollSmooth);
 
-          camera.position.x = mouseX * 1.2;
-          camera.position.y = mouseY * 0.8;
-          camera.lookAt(0, 0, 0);
+          const targetLookY = THREE.MathUtils.lerp(startCamY - 0.5, endCamY - 1.0, currentScrollFraction);
+          camera.lookAt(new THREE.Vector3(parallaxX * 0.3, targetLookY, 0));
+
+          // Animate hypercube blocks along the spine
+          spineBlocks.forEach((block, idx) => {
+            block.group.rotation.x = elapsedTime * block.rotSpeedX;
+            block.group.rotation.y = elapsedTime * block.rotSpeedY;
+
+            const floatOffset = Math.sin(elapsedTime * 2.2 + block.phase) * 0.16;
+            block.group.position.x = block.basePos.x + Math.cos(elapsedTime * 1.5 + idx) * 0.12;
+            block.group.position.y = block.basePos.y + floatOffset;
+
+            const corePulse = 1 + Math.sin(elapsedTime * 3.8 + idx) * 0.2;
+            block.coreMesh.scale.set(corePulse, corePulse, corePulse);
+          });
+
+          // Move Data Packets along the spine
+          const pArray = packetGeo.getAttribute('position').array as Float32Array;
+          for (let p = 0; p < packetCount; p++) {
+            packetU[p] = (packetU[p] + delta * packetSpeed[p]) % 1.0;
+            const pt = spineCurve.getPoint(packetU[p]);
+            pArray[p * 3] = pt.x;
+            pArray[p * 3 + 1] = pt.y;
+            pArray[p * 3 + 2] = pt.z;
+          }
+          (packetGeo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+
+          particleCloud.rotation.y = elapsedTime * 0.02;
         }
 
         renderer.render(scene, camera);
       };
 
+      const handleVisibilityChange = () => {
+        if (document.hidden) cancelAnimationFrame(animId);
+        else animate();
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
       animate();
 
       return () => {
         isDisposed = true;
         cancelAnimationFrame(animId);
-        window.removeEventListener('mousemove', onPointerMove);
-        resizeObserver.disconnect();
+        window.removeEventListener('scroll', handleScroll);
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('resize', handleResize);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
         intersectionObserver.disconnect();
 
         if (canvas.parentNode) {
           canvas.parentNode.removeChild(canvas);
         }
 
-        coreGeo.dispose();
+        outerBoxGeo.dispose();
+        outerEdgesGeo.dispose();
+        outerWireMat.dispose();
+        glassBoxGeo.dispose();
+        glassMat.dispose();
+        coreBoxGeo.dispose();
         coreMat.dispose();
-        nodeGeo.dispose();
-        nodeMat.dispose();
-        linesGeo.dispose();
-        linesMat.dispose();
-        particlesGeo.dispose();
-        particlesMat.dispose();
+        packetGeo.dispose();
+        packetMat.dispose();
+        particleGeo.dispose();
+        particleMat.dispose();
         if (renderer) renderer.dispose();
       };
     } catch (err) {
-      console.warn('WebGL initialization failed, falling back to CSS animation:', err);
+      console.warn('WebGL initialization failed, falling back:', err);
       setInitFailed(true);
     }
   }, []);
 
-  if (initFailed) {
+if (initFailed) {
     return <FallbackConstellation />;
   }
 
-  return <div ref={containerRef} className="pl-3d-scene-container" aria-hidden="true" />;
+  return <div ref={containerRef} className="pl-3d-scene-container-contained" aria-hidden="true" />;
 }
 
 export function NetworkScene3D() {

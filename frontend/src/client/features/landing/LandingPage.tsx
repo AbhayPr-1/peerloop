@@ -99,11 +99,18 @@ export function LandingPage() {
   };
 
   return (
-    <main className="peerloop-home">
+    <main className="peerloop-home relative">
       <div className="pl-scroll-progress" aria-hidden="true" />
 
-      {/* 1. IMMERSIVE 3D HERO SECTION */}
-      <section id="hero" className="pl-hero" data-reveal="hero" data-revealed="true">
+      {/* Global 3D Full-Page Blockchain Background & Spine */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-85">
+        <div className="pl-3d-blockchain-container w-full h-full">
+          <NetworkScene3D />
+        </div>
+      </div>
+
+      {/* 1. IMMERSIVE HERO SECTION */}
+      <section id="hero" className="pl-hero relative z-10" data-reveal="hero" data-revealed="true">
         <div className="pl-hero-grid">
           <div className="pl-hero-copy">
             <div className="pl-network-badge" aria-label="Ethereum Sepolia test network">
@@ -117,9 +124,8 @@ export function LandingPage() {
             </h1>
 
             <p className="pl-hero-subtitle">
-              A smarter way to discover, exchange, and transact through a connected peer-to-peer
-              marketplace with listings and purchases recorded through an Ethereum smart contract.
-              Buyers can release or refund an active escrow, or open a dispute for both parties to resolve.
+              Discover peer-to-peer listings, buy with contract-held escrow, and review each transaction
+              before signing. Buyers can release or request a refund, or open a dispute for both parties to resolve.
             </p>
 
             <div className="pl-hero-actions">
@@ -132,6 +138,11 @@ export function LandingPage() {
                 <span aria-hidden="true">→</span>
               </button>
             </div>
+
+            <p className="pl-testnet-note">
+              <strong>Testnet only:</strong> Peerloop currently uses Sepolia test ETH, which has no mainnet value.
+              Your wallet will ask you to review and approve signatures or transactions.
+            </p>
 
             <div className="pl-hero-metrics">
               <div className="pl-metric-item">
@@ -146,9 +157,7 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="pl-hero-visual">
-            <NetworkScene3D />
-          </div>
+          <div className="pl-hero-visual" aria-hidden="true" />
         </div>
 
         <a className="pl-scroll-indicator" href="#philosophy" aria-label="Scroll to explore ecosystem">

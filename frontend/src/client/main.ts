@@ -3,6 +3,7 @@
 const processedRefundUpdates = new Set<string>();
 const processedSaleUpdates = new Set<string>();
 const processedEscrowUpdates = new Set<string>();
+const marketplaceRefreshIntervalMs = 15000;
 
 document.addEventListener('DOMContentLoaded', async () => {
   readOnlyProviderReady = initializeReadOnlyProvider();
@@ -72,11 +73,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (data.type === 'vote' && data.id != null && data.escrowId != null) {
             void refreshEscrowStateFromChain(String(data.id), String(data.escrowId));
         }
-        if (socket.connected && !['refunded', 'released', 'disputed', 'vote'].includes(data.type)) fetchProducts(true);
+        if (socket.connected && !['refunded', 'released', 'disputed', 'vote'].includes(data.type)) {
+          fetchProducts(true);
+          if (data.type === 'listed') {
+            window.setTimeout(() => {
+              const marketplace = document.getElementById('marketplace');
+              if (!document.hidden && marketplace && !marketplace.classList.contains('hidden')) {
+                fetchProducts(false, 0, false);
+              }
+            }, 1500);
+          }
+        }
     });
   } else {
     console.warn("Socket.IO client library not found. Real-time updates disabled.");
   }
+
+  const marketplaceRefreshInterval = window.setInterval(() => {
+    const marketplace = document.getElementById('marketplace');
+    if (!document.hidden && marketplace && !marketplace.classList.contains('hidden')) {
+      fetchProducts(false, 0, false);
+    }
+  }, marketplaceRefreshIntervalMs);
+  window.addEventListener('pagehide', () => window.clearInterval(marketplaceRefreshInterval), { once: true });
   
   await checkAuthState();
   renderUI();
@@ -245,7 +264,9 @@ if (searchInput) {
 }
 const priceFilter = document.getElementById('price-filter');
 if (priceFilter) {
+  updatePriceFilterProgress(priceFilter as HTMLInputElement);
   priceFilter.addEventListener('input', () => {
+    updatePriceFilterProgress(priceFilter as HTMLInputElement);
     const bound = (priceFilter as HTMLInputElement).dataset.bound;
     const output = document.getElementById('price-filter-value');
     if (output && bound) {

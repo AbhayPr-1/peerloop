@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from './ThemeToggle';
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen((prev) => !prev);
@@ -10,7 +12,34 @@ export function Header() {
 
   const closeMobileMenu = () => {
     setMobileMenuOpen(false);
+    mobileMenuToggleRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    mobileMenuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+        mobileMenuToggleRef.current?.focus();
+        return;
+      }
+      if (event.key !== 'Tab' || !mobileMenuRef.current) return;
+      const focusable = Array.from(mobileMenuRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex]:not([tabindex="-1"])'));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen]);
 
   return (
     <>
@@ -88,6 +117,7 @@ export function Header() {
           {/* Mobile menu toggle button */}
           <button
             type="button"
+            ref={mobileMenuToggleRef}
             className="md:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/40"
             onClick={toggleMobileMenu}
             aria-label="Toggle navigation menu"
@@ -106,8 +136,17 @@ export function Header() {
 
       {/* Mobile drawer */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-gray-900/80 backdrop-blur-md md:hidden pt-24 px-6 flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
+        <div
+          ref={mobileMenuRef}
+          className="fixed inset-0 z-40 bg-gray-900/80 backdrop-blur-md md:hidden pt-24 px-6 flex flex-col gap-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeMobileMenu();
+          }}
+        >
+          <nav className="flex flex-col gap-2" aria-label="Mobile navigation links">
             <button
               className="text-left py-3 px-4 rounded-xl text-lg font-semibold text-gray-200 hover:bg-gray-800"
               onClick={() => {
@@ -153,7 +192,7 @@ export function Header() {
             >
               <span>Shopping Bag</span>
             </button>
-          </div>
+          </nav>
         </div>
       )}
     </>

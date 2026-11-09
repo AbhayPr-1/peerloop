@@ -90,9 +90,63 @@
 /* Range input styling */
 .price-filter-control input[type="range"] {
   width: 100%;
-  accent-color: var(--pl-accent);
+  height: 1.25rem;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--pl-accent) 0%,
+    var(--pl-accent) var(--range-progress, 100%),
+    var(--pl-surface-hover) var(--range-progress, 100%),
+    var(--pl-surface-hover) 100%
+  );
   margin: 0.75rem 0 0.25rem;
   cursor: pointer;
+}
+
+.price-filter-control input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.price-filter-control input[type="range"]::-moz-range-track {
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--pl-surface-hover);
+}
+
+.price-filter-control input[type="range"]::-moz-range-progress {
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--pl-accent);
+}
+
+.price-filter-control input[type="range"]::-webkit-slider-thumb {
+  width: 1rem;
+  height: 1rem;
+  margin-top: -0.275rem;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid var(--dark-card);
+  border-radius: 50%;
+  background: var(--pl-accent);
+  box-shadow: 0 0 0 2px var(--pl-accent), 0 2px 6px rgba(15, 23, 42, 0.24);
+}
+
+.price-filter-control input[type="range"]::-moz-range-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--dark-card);
+  border-radius: 50%;
+  background: var(--pl-accent);
+  box-shadow: 0 0 0 2px var(--pl-accent), 0 2px 6px rgba(15, 23, 42, 0.24);
+}
+
+.price-filter-control input[type="range"]:focus-visible {
+  outline: 2px solid var(--pl-accent);
+  outline-offset: 4px;
 }
 
 .range-scale {
@@ -385,6 +439,27 @@
   overflow-x: auto;
   border-radius: 0.875rem;
   border: 1px solid var(--pl-border);
+  scrollbar-color: var(--pl-accent) var(--surface-muted);
+  scrollbar-width: thin;
+}
+
+.profile-table-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+
+.profile-table-wrap::-webkit-scrollbar-track {
+  background: var(--surface-muted);
+  border-radius: 9999px;
+}
+
+.profile-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--pl-accent);
+  border: 2px solid var(--dark-card);
+  border-radius: 9999px;
+}
+
+.profile-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--pl-accent-hover);
 }
 
 .profile-table {

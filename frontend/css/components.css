@@ -96,6 +96,44 @@
 .text-neon-blue { color: var(--pl-accent); }
 .text-neon-pink { color: var(--pl-gold); }
 
+.escrow-choice {
+  display: inline-flex;
+  align-items: center;
+  margin: 0.2rem 0.15rem;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid currentColor;
+  border-radius: 9999px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.escrow-choice--release,
+.escrow-action-word--release { color: #047857; }
+
+.escrow-choice--refund,
+.escrow-action-word--refund { color: #DC2626; }
+
+.escrow-choice--release { background: rgba(16, 185, 129, 0.12); }
+.escrow-choice--refund { background: rgba(239, 68, 68, 0.1); }
+
+.escrow-action-word { font-weight: 800; }
+
+.escrow-action--release { border-color: rgba(5, 150, 105, 0.5); }
+.escrow-action--refund { border-color: rgba(220, 38, 38, 0.5); }
+
+.product-card-category {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--pl-border);
+  border-radius: 9999px;
+  background-color: var(--surface-muted);
+  color: var(--pl-text);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+}
+
 html[data-theme='dark'] .text-gray-300 { color: #E2E8F0; }
 html[data-theme='dark'] .text-gray-400 { color: var(--pl-text-muted); }
 html[data-theme='dark'] .text-gray-500,

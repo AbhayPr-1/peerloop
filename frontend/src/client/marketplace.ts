@@ -66,7 +66,7 @@ function createProductCard(product) {
     </div>
     <div class="product-card-meta mb-4 flex items-center justify-between">
       <span class="product-card-price text-neon-pink font-bold text-xl">${window.PeerLoopMoney.formatEth(product.price)} ETH</span>
-      <span class="product-card-category text-xs px-2.5 py-1 rounded-full bg-gray-700/70 border border-gray-600/40 text-gray-300">${escapeHtml(displayCategory)}</span>
+      <span class="product-card-category">${escapeHtml(displayCategory)}</span>
     </div><div class="product-card-actions grid grid-cols-2 gap-3 mt-auto">${actionButtons}</div>`;
   const imageGallery = createProductImageGallery(product.imageUrl, product.name, 'marketplace', () => showQuickView(product));
   card.querySelector('.product-gallery-slot').replaceWith(imageGallery);
@@ -118,6 +118,16 @@ function renderProducts(list) {
     return;
   }
   list.forEach(p => grid.appendChild(createProductCard(p)));
+}
+
+function updatePriceFilterProgress(control) {
+  const min = Number(control.min) || 0;
+  const max = Number(control.max);
+  const value = Number(control.value);
+  const progress = Number.isFinite(max) && max > min
+    ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
+    : 100;
+  control.style.setProperty('--range-progress', `${progress}%`);
 }
 
 function removeProductFromMarketplace(productId) {
@@ -272,6 +282,7 @@ function filterAndSortProducts() {
         ? 'Any price' : `${priceControl.value} ETH`;
     }
   }
+  if (priceControl) updatePriceFilterProgress(priceControl);
   let list = [...allProducts];
   if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
   if (cat !== "all") list = list.filter(p => p.category === cat);

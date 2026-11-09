@@ -699,7 +699,19 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = className;
-        button.textContent = label;
+        const actionMatch = /^(.*?)(Release|Refund)(.*)$/.exec(label);
+        if (actionMatch) {
+          button.append(
+            document.createTextNode(actionMatch[1]),
+            Object.assign(document.createElement('strong'), {
+              className: `escrow-action-word escrow-action-word--${actionMatch[2].toLowerCase()}`,
+              textContent: actionMatch[2]
+            }),
+            document.createTextNode(actionMatch[3])
+          );
+        } else {
+          button.textContent = label;
+        }
         button.addEventListener('click', () => showConfirmationModal(
           confirmation,
           () => submitEscrowAction(productId, escrowId, method, button, container, ...args)
@@ -717,7 +729,7 @@
           addAction(
             'Refund to me', 'refundEscrow', [],
             'Refund this escrow payment to your wallet? This action is final.',
-            'modern-button-secondary !border-red-500 !text-red-500 hover:!bg-red-500 hover:!text-white'
+            'modern-button-secondary escrow-action--refund !border-red-500 !text-red-500 hover:!bg-red-500 hover:!text-white'
           );
           addAction(
             'Open dispute', 'disputeEscrow', [],
@@ -763,8 +775,8 @@
               ? 'Select release to the seller? If both parties agree, the seller receives a claimable payout.'
               : 'Select refund to the buyer? If both parties agree, the buyer receives a claimable refund.',
             releaseToSeller
-              ? 'modern-button-secondary'
-              : 'modern-button-secondary !border-red-500 !text-red-500 hover:!bg-red-500 hover:!text-white'
+              ? 'modern-button-secondary escrow-action--release'
+              : 'modern-button-secondary escrow-action--refund !border-red-500 !text-red-500 hover:!bg-red-500 hover:!text-white'
           );
         }
       }
