@@ -81,13 +81,13 @@ export function SellListing() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  <div id="product-category-options" className="dropdown-menu w-full hidden">
-                    <a href="#" data-value="electronics">Electronics</a>
-                    <a href="#" data-value="wearables">Wearables</a>
-                    <a href="#" data-value="cybernetics">Cybernetics</a>
-                    <a href="#" data-value="data">Data &amp; Software</a>
-                    <a href="#" data-value="gadgets">Gadgets</a>
-                    <a href="#" data-value="others">Others</a>
+                  <div id="product-category-options" className="dropdown-menu w-full hidden" role="menu">
+                    <button type="button" role="menuitemradio" aria-checked="false" data-value="electronics">Electronics</button>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-value="wearables">Wearables</button>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-value="cybernetics">Cybernetics</button>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-value="data">Data &amp; Software</button>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-value="gadgets">Gadgets</button>
+                    <button type="button" role="menuitemradio" aria-checked="false" data-value="others">Others</button>
                   </div>
                 </div>
               </div>

@@ -19,8 +19,8 @@ function SelectDropdown({ id, label, options, labelId }: {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      <div id={`${id}-options`} className="dropdown-menu w-full hidden">
-        {options.map(({ value, text }) => <a key={value} href="#" data-value={value}>{text}</a>)}
+      <div id={`${id}-options`} className="dropdown-menu w-full hidden" role="menu">
+        {options.map(({ value, text }) => <button key={value} type="button" role="menuitemradio" aria-checked="false" data-value={value}>{text}</button>)}
       </div>
     </div>
   );
@@ -50,10 +50,6 @@ export function Marketplace() {
       <div className="max-w-7xl mx-auto">
         {/* Marketplace Header */}
         <div className="mb-10 text-left">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="network-dot pulse" />
-            <span className="account-banner-eyebrow">DECENTRALIZED COMMERCE</span>
-          </div>
           <h2 id="marketplace-heading" className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
             Explore listings
           </h2>

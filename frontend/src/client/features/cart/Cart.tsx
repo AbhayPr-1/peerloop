@@ -4,10 +4,6 @@ export function Cart() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono font-semibold text-emerald-400 mb-2">
-            <span className="network-dot pulse" />
-            <span>DECENTRALIZED CHECKOUT</span>
-          </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">SHOPPING BAG</h2>
           <p className="text-gray-400 text-sm sm:text-base mt-2 max-w-xl mx-auto leading-relaxed">
             Review your selected listings. Each purchase creates an on-chain escrow with buyer-controlled

@@ -262,7 +262,7 @@ export function LandingPage() {
                 onClick={() => {
                   document.getElementById('hero-explore-btn')?.click();
                   window.setTimeout(() => {
-                    document.querySelector<HTMLAnchorElement>(`#category-filter-options a[data-value="${cat.id}"]`)?.click();
+                    document.querySelector<HTMLButtonElement>(`#category-filter-options button[data-value="${cat.id}"]`)?.click();
                   }, 0);
                 }}
               >

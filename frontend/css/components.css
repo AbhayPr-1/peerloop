@@ -186,16 +186,21 @@ html[data-theme='light'] .border-gray-700 { border-color: var(--pl-border); }
   margin-top: 0;
 }
 
-.dropdown-menu a {
+.dropdown-menu button {
+  width: 100%;
   display: block;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
   padding: 0.65rem 1rem;
   font-size: 0.9rem;
   color: var(--pl-text);
   transition: background-color 0.15s ease, color 0.15s ease;
-  text-decoration: none;
 }
 
-.dropdown-menu a:hover {
+.dropdown-menu button:hover,
+.dropdown-menu button:focus-visible {
   background-color: var(--surface-muted);
   color: var(--pl-accent);
 }
