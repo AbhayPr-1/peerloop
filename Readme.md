@@ -10,7 +10,7 @@ PeerLoop is a peer-to-peer marketplace built around an Ethereum smart contract. 
 - The Express backend manages wallet-based login, user data, image uploads, and liveness/readiness checks.
 - Product images are uploaded to Pinata and stored as canonical IPFS URIs; the frontend uses a fast gateway first and falls back to alternate gateways if needed.
 - Marketplace reads race validated Sepolia RPC endpoints so a slow or unavailable endpoint does not block Explore.
-- An Ethers.js listener watches contract events and sends updates to the frontend through Socket.IO.
+- An Ethers.js listener prefers Sepolia WebSocket contract-event subscriptions, catches up and falls back through HTTP RPC when needed, and sends updates to the frontend through Socket.IO.
 - The backend, startup tools, and browser application are written in TypeScript. React mounts the browser UI from a TypeScript-generated document. The cart, theme choice, and transaction-history cache are kept in page memory and reset on reload; authentication is maintained by a server-issued HttpOnly cookie.
 - Tailwind utility styles are compiled locally as part of the frontend build; the browser does not load Tailwind from a CDN.
 - The account dashboard is isolated in its own frontend module; profile activity dates come from the corresponding Sepolia block timestamp.
@@ -54,7 +54,8 @@ Set the following values in the root `.env` file:
 | `PORT` | Backend port; defaults to `5001`. |
 | `MONGO_URI` | MongoDB connection string. |
 | `JWT_SECRET` | Secret used to sign session tokens. The setup script can generate one. |
-| `SEPOLIA_RPC_URL` | Backend RPC endpoint used by the contract event listener. It is not sent to the browser. |
+| `SEPOLIA_RPC_URL` | Backend HTTPS RPC endpoint used for block catch-up and as a fallback if WebSocket subscriptions are unavailable. It is not sent to the browser. |
+| `SEPOLIA_WSS_URL` | Optional provider-specific WebSocket endpoint for immediate contract-event subscriptions. If omitted, the backend derives a `wss://` URL from `SEPOLIA_RPC_URL`; HTTP polling resumes automatically if the WebSocket connection fails. |
 | `APP_ORIGIN` | Allowed frontend origin; defaults to `http://localhost:3000`. Set this to the deployed frontend URL in production. |
 | `CONTRACT_ADDRESS` | Address of the deployed marketplace contract. |
 | `PRIVATE_KEY` | Wallet key used for contract deployment. |

@@ -15,7 +15,7 @@ function SelectDropdown({ id, label, options, labelId }: {
         aria-expanded="false"
       >
         <span id={`${id}-value`}>{label}</span>
-        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -27,7 +27,7 @@ function SelectDropdown({ id, label, options, labelId }: {
 }
 
 const categories = [
-  { value: 'all', text: 'All Categories' },
+  { value: 'all', text: 'All categories' },
   { value: 'electronics', text: 'Electronics' },
   { value: 'wearables', text: 'Wearables' },
   { value: 'cybernetics', text: 'Cybernetics' },
@@ -47,53 +47,90 @@ const sortOptions = [
 export function Marketplace() {
   return (
     <section id="marketplace" className="min-h-screen pt-28 pb-16 px-4 sm:px-6 lg:px-8 hidden-section hidden">
-      <div className="max-w-7xl mx-auto">
-        {/* Marketplace Header */}
-        <div className="mb-10 text-left">
-          <h2 id="marketplace-heading" className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
-            Explore listings
-          </h2>
-          <p className="text-gray-400 text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
-            Browse current marketplace listings. Purchases use the configured contract escrow; review its
-            available actions and network details before signing a transaction.
-          </p>
-        </div>
+      <div className="max-w-7xl mx-auto marketplace-page">
+        <header className="marketplace-intro">
+          <div className="marketplace-overline">
+            <span className="network-dot" aria-hidden="true" />
+            <span>PeerLoop marketplace</span>
+            <span className="marketplace-overline-divider" aria-hidden="true">/</span>
+            <span className="marketplace-network-label">Sepolia testnet</span>
+          </div>
+          <div className="marketplace-intro-grid">
+            <div>
+              <h2 id="marketplace-heading" className="marketplace-title">
+                Explore <span>listings</span>
+              </h2>
+              <p className="marketplace-description">
+                Browse current listings from the marketplace contract. Purchases use its escrow flow and are completed with your connected wallet.
+              </p>
+            </div>
+            <aside className="marketplace-flow-note" aria-label="Marketplace purchase information">
+              <span className="marketplace-flow-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 10V7a5 5 0 0 1 10 0v3M5.5 10h13v10h-13z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 14v2" />
+                </svg>
+              </span>
+              <span>
+                <strong>Contract-based checkout</strong>
+                <span>Review the on-chain transaction in your wallet before confirming.</span>
+              </span>
+            </aside>
+          </div>
 
-        {/* Layout: Sidebar + Results */}
+          <div className="marketplace-category-bar" id="marketplace-category-shortcuts" role="group" aria-label="Filter listings by category">
+            <span className="marketplace-category-heading">Browse categories</span>
+            <div className="marketplace-category-chips">
+              {categories.map(({ value, text }, index) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="marketplace-category-chip"
+                  data-marketplace-category={value}
+                  aria-pressed={index === 0}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          </div>
+        </header>
+
         <div className="marketplace-layout">
-          {/* Filter Sidebar */}
-          <aside className="explore-sidebar">
+          <aside className="explore-sidebar" aria-label="Filter marketplace listings">
             <div className="sidebar-control">
-              <label className="sidebar-label" htmlFor="search-input">Search Gears</label>
-              <div className="relative">
+              <label className="sidebar-label" htmlFor="search-input">Search listings</label>
+              <div className="marketplace-search-wrap">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <circle cx="10.8" cy="10.8" r="6.3" />
+                  <path strokeLinecap="round" d="m15.5 15.5 4.2 4.2" />
+                </svg>
                 <input
                   type="search"
                   id="search-input"
-                  placeholder="Search by title, description..."
+                  placeholder="Title or description"
                   className="w-full auth-input text-sm"
                 />
               </div>
             </div>
 
             <div className="sidebar-control">
-              <span className="sidebar-label" id="category-filter-label">Categories</span>
-              <SelectDropdown id="category-filter" labelId="category-filter-label" label="All Categories" options={categories} />
+              <span className="sidebar-label" id="category-filter-label">Category</span>
+              <SelectDropdown id="category-filter" labelId="category-filter-label" label="All categories" options={categories} />
             </div>
 
             <div className="sidebar-control">
-              <span className="sidebar-label">Blockchain Network</span>
+              <span className="sidebar-label">Network</span>
               <div className="network-chip w-full justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="network-dot" />
-                  <span>Sepolia Testnet</span>
-                </div>
+                <span className="marketplace-network-name"><span className="network-dot" aria-hidden="true" />Sepolia testnet</span>
+                <span className="marketplace-network-type">Marketplace</span>
               </div>
             </div>
 
             <div className="sidebar-control price-filter-control">
-              <div className="flex justify-between items-center mb-1">
-                <label className="sidebar-label m-0" htmlFor="price-filter">Max Price</label>
-                <output id="price-filter-value" className="text-xs font-mono font-bold text-neon-pink">Any price</output>
+              <div className="marketplace-filter-heading">
+                <label className="sidebar-label m-0" htmlFor="price-filter">Maximum price</label>
+                <output id="price-filter-value" className="marketplace-price-value">Any price</output>
               </div>
               <input
                 id="price-filter"
@@ -111,29 +148,30 @@ export function Marketplace() {
             </div>
 
             <div className="sidebar-control status-control">
-              <span className="sidebar-label">Listing Status</span>
+              <span className="sidebar-label">Availability</span>
               <label className="checkbox-row">
                 <input id="available-only" type="checkbox" defaultChecked />
-                <span>Show Available Only</span>
+                <span>Show available only</span>
               </label>
             </div>
           </aside>
 
-          {/* Results Area */}
           <div className="explore-results">
-            {/* Toolbar */}
             <div className="explore-toolbar">
-              <div>
-                <span className="sidebar-label">Marketplace Inventory</span>
-                <span id="product-count" className="result-count">Loading listings…</span>
+              <div className="marketplace-results-heading">
+                <span className="sidebar-label">Marketplace inventory</span>
+                <span id="product-count" className="result-count" aria-live="polite">Loading listings…</span>
               </div>
-              <div className="relative sort-control">
-                <SelectDropdown id="sort-by" label="Newest First" options={sortOptions} />
+              <div className="marketplace-sort-control">
+                <span className="marketplace-sort-label">Sort by</span>
+                <div className="relative sort-control">
+                  <SelectDropdown id="sort-by" label="Newest first" options={sortOptions} />
+                </div>
               </div>
             </div>
 
-            {/* Product Cards Grid */}
-            <div id="product-grid" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6" />
+            <div id="product-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" />
+            <div id="marketplace-pagination" className="marketplace-pagination hidden" hidden />
           </div>
         </div>
       </div>

@@ -10,6 +10,7 @@ test('backend config supplies backward-compatible local defaults', () => {
     jwtSecret: undefined,
     isProduction: false,
     chainRpcUrl: undefined,
+    chainWssUrl: undefined,
     contractAddress: undefined,
     pinata: { apiKey: undefined, apiSecret: undefined, jwt: undefined }
   });
@@ -28,6 +29,7 @@ test('backend config reads explicit environment settings', () => {
     jwtSecret: 'test-secret',
     isProduction: false,
     chainRpcUrl: undefined,
+    chainWssUrl: undefined,
     contractAddress: undefined,
     pinata: { apiKey: undefined, apiSecret: undefined, jwt: undefined }
   });
@@ -36,6 +38,7 @@ test('backend config reads explicit environment settings', () => {
 test('backend config centralizes chain aliases and storage credentials', () => {
   const config = createBackendConfig({
     SEPOLIA_RPC_URL: ' https://rpc.primary.test ',
+    SEPOLIA_WSS_URL: ' wss://socket.primary.test/ws ',
     RPC_URL: 'https://rpc.legacy.test',
     CONTRACT_ADDRESS: ' 0x0000000000000000000000000000000000000001 ',
     PINATA_API_KEY: ' key ',
@@ -43,11 +46,14 @@ test('backend config centralizes chain aliases and storage credentials', () => {
     PINATA_JWT: ' jwt '
   });
   assert.equal(config.chainRpcUrl, 'https://rpc.primary.test');
+  assert.equal(config.chainWssUrl, 'wss://socket.primary.test/ws');
   assert.equal(config.contractAddress, '0x0000000000000000000000000000000000000001');
   assert.deepEqual(config.pinata, { apiKey: 'key', apiSecret: 'secret', jwt: 'jwt' });
 
   assert.equal(createBackendConfig({ RPC_URL: 'https://rpc.legacy.test' }).chainRpcUrl, 'https://rpc.legacy.test');
+  assert.equal(createBackendConfig({ RPC_URL: 'https://rpc.legacy.test' }).chainWssUrl, 'wss://rpc.legacy.test');
   assert.equal(createBackendConfig({ SEPOLIA_RPC: 'https://rpc.old.test' }).chainRpcUrl, 'https://rpc.old.test');
+  assert.equal(createBackendConfig({ SEPOLIA_RPC: 'http://localhost:8545' }).chainWssUrl, 'ws://localhost:8545');
 });
 
 test('backend config rejects invalid ports at startup', () => {

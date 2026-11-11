@@ -9,6 +9,7 @@ export interface BackendConfig {
   jwtSecret?: string;
   isProduction: boolean;
   chainRpcUrl?: string;
+  chainWssUrl?: string;
   contractAddress?: string;
   pinata: {
     apiKey?: string;
@@ -32,6 +33,12 @@ export function createBackendConfig(environment: NodeJS.ProcessEnv): BackendConf
     || environment.RPC_URL?.trim()
     || environment.SEPOLIA_RPC?.trim()
     || undefined;
+  const chainWssUrl = environment.SEPOLIA_WSS_URL?.trim()
+    || (chainRpcUrl && /^https:\/\//i.test(chainRpcUrl)
+      ? chainRpcUrl.replace(/^https:/i, 'wss:')
+      : chainRpcUrl && /^http:\/\//i.test(chainRpcUrl)
+        ? chainRpcUrl.replace(/^http:/i, 'ws:')
+        : undefined);
   const contractAddress = environment.CONTRACT_ADDRESS?.trim() || undefined;
   const pinata = {
     apiKey: environment.PINATA_API_KEY?.trim() || undefined,
@@ -64,6 +71,7 @@ export function createBackendConfig(environment: NodeJS.ProcessEnv): BackendConf
     jwtSecret,
     isProduction,
     chainRpcUrl,
+    chainWssUrl,
     contractAddress,
     pinata
   };

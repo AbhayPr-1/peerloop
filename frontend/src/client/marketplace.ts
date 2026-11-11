@@ -3,6 +3,12 @@
 const realtimeRemovedProductIds = new Set();
 let productRefreshVersion = 0;
 let filterDebounceTimer = null;
+const MARKETPLACE_PAGE_SIZE = 12;
+let currentMarketplacePage = 1;
+
+function resetMarketplacePage() {
+  currentMarketplacePage = 1;
+}
 
 const escrowPurchaseInterface = new ethers.utils.Interface([
     'event EscrowCreated(uint256 escrowId, uint256 productId, address seller, address buyer, uint256 amount)'
@@ -13,16 +19,16 @@ function delay(ms) {
 }
 
 function debouncedFilterAndSort(delayMs = 120) {
-    if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
-    filterDebounceTimer = setTimeout(() => {
-        filterAndSortProducts();
-        filterDebounceTimer = null;
-    }, delayMs);
+  if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
+  filterDebounceTimer = setTimeout(() => {
+    filterAndSortProducts();
+    filterDebounceTimer = null;
+  }, delayMs);
 }
 
 function renderProductSkeletons(grid) {
-    if (!grid) return;
-    grid.innerHTML = Array.from({ length: 8 }).map(() => `
+  if (!grid) return;
+  grid.innerHTML = Array.from({ length: MARKETPLACE_PAGE_SIZE }).map(() => `
       <div class="theme-card-bg rounded-2xl p-6 card-neon-border flex flex-col pl-skeleton-card">
         <div class="w-full h-48 rounded-xl bg-gray-700/30 mb-4 skeleton-shimmer"></div>
         <div class="h-6 w-3/4 rounded bg-gray-700/30 mb-3 skeleton-shimmer"></div>
@@ -118,6 +124,91 @@ function renderProducts(list) {
     return;
   }
   list.forEach(p => grid.appendChild(createProductCard(p)));
+}
+
+function getMarketplacePageItems(totalPages: number, activePage: number): Array<number | 'ellipsis'> {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+  if (activePage <= 4) return [1, 2, 3, 4, 5, 'ellipsis', totalPages];
+  if (activePage >= totalPages - 3) {
+    return [1, 'ellipsis', ...Array.from({ length: 5 }, (_, index) => totalPages - 4 + index)];
+  }
+  return [1, 'ellipsis', activePage - 1, activePage, activePage + 1, 'ellipsis', totalPages];
+}
+
+function renderMarketplacePagination(totalItems) {
+  const pagination = document.getElementById('marketplace-pagination');
+  if (!pagination) return;
+
+  const totalPages = Math.ceil(totalItems / MARKETPLACE_PAGE_SIZE);
+  pagination.replaceChildren();
+  if (totalPages <= 1) {
+    pagination.hidden = true;
+    pagination.classList.add('hidden');
+    return;
+  }
+
+  pagination.hidden = false;
+  pagination.classList.remove('hidden');
+
+  const firstItem = (currentMarketplacePage - 1) * MARKETPLACE_PAGE_SIZE + 1;
+  const lastItem = Math.min(currentMarketplacePage * MARKETPLACE_PAGE_SIZE, totalItems);
+  const summary = document.createElement('p');
+  summary.className = 'marketplace-pagination-summary';
+  summary.textContent = `Showing ${firstItem}–${lastItem} of ${totalItems} listings`;
+  pagination.appendChild(summary);
+
+  const navigation = document.createElement('nav');
+  navigation.className = 'marketplace-pagination-controls';
+  navigation.setAttribute('aria-label', 'Marketplace pages');
+
+  const addPageButton = (
+    page: number,
+    label: string,
+    options: { current?: boolean; label?: string; disabled?: boolean } = {}
+  ) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `marketplace-page-button${options.current ? ' is-current' : ''}`;
+    button.textContent = label;
+    button.dataset.page = String(page);
+    if (options.current) button.setAttribute('aria-current', 'page');
+    if (options.label) button.setAttribute('aria-label', options.label);
+    if (options.disabled) button.disabled = true;
+    navigation.appendChild(button);
+  };
+
+  addPageButton(currentMarketplacePage - 1, 'Previous', {
+    label: 'Go to previous page',
+    disabled: currentMarketplacePage === 1
+  });
+
+  getMarketplacePageItems(totalPages, currentMarketplacePage).forEach((item) => {
+    if (item === 'ellipsis') {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'marketplace-page-ellipsis';
+      ellipsis.setAttribute('aria-hidden', 'true');
+      ellipsis.textContent = '…';
+      navigation.appendChild(ellipsis);
+      return;
+    }
+    addPageButton(item, String(item), { current: item === currentMarketplacePage, label: `Go to page ${item}` });
+  });
+
+  addPageButton(currentMarketplacePage + 1, 'Next', {
+    label: 'Go to next page',
+    disabled: currentMarketplacePage === totalPages
+  });
+  pagination.appendChild(navigation);
+
+  navigation.querySelectorAll<HTMLButtonElement>('button[data-page]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const requestedPage = Number(button.dataset.page);
+      if (!Number.isInteger(requestedPage) || requestedPage < 1 || requestedPage > totalPages) return;
+      currentMarketplacePage = requestedPage;
+      filterAndSortProducts();
+      pagination.querySelector<HTMLButtonElement>('button[aria-current="page"]')?.focus();
+    });
+  });
 }
 
 function updatePriceFilterProgress(control) {
@@ -297,7 +388,11 @@ function filterAndSortProducts() {
   }
   const count = document.getElementById('product-count');
   if (count) count.textContent = `${list.length} ${list.length === 1 ? 'listing' : 'listings'}`;
-  renderProducts(list);
+  const totalPages = Math.max(1, Math.ceil(list.length / MARKETPLACE_PAGE_SIZE));
+  currentMarketplacePage = Math.min(currentMarketplacePage, totalPages);
+  const startIndex = (currentMarketplacePage - 1) * MARKETPLACE_PAGE_SIZE;
+  renderProducts(list.slice(startIndex, startIndex + MARKETPLACE_PAGE_SIZE));
+  renderMarketplacePagination(list.length);
 }
 
 async function buyNow(product, buttonElement = null) {

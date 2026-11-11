@@ -3,7 +3,28 @@
 const processedRefundUpdates = new Set<string>();
 const processedSaleUpdates = new Set<string>();
 const processedEscrowUpdates = new Set<string>();
-const marketplaceRefreshIntervalMs = 15000;
+let marketplaceListingRefreshTimer: number | null = null;
+let hasSocketConnected = false;
+
+function isMarketplaceSectionVisible() {
+  const marketplace = document.getElementById('marketplace');
+  return Boolean(marketplace && !marketplace.classList.contains('hidden'));
+}
+
+function scheduleMarketplaceListingRefresh() {
+  if (marketplaceListingRefreshTimer !== null) window.clearTimeout(marketplaceListingRefreshTimer);
+  marketplaceListingRefreshTimer = window.setTimeout(() => {
+    marketplaceListingRefreshTimer = null;
+    if (!document.hidden && isMarketplaceSectionVisible()) fetchProducts(true);
+  }, 100);
+}
+
+function syncMarketplaceCategoryShortcuts(value: string) {
+  const shortcuts = document.getElementById('marketplace-category-shortcuts');
+  shortcuts?.querySelectorAll<HTMLButtonElement>('button[data-marketplace-category]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.marketplaceCategory === value));
+  });
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   readOnlyProviderReady = initializeReadOnlyProvider();
@@ -16,15 +37,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 500,         
       timeout: 20000,
-      pingInterval: 10000,
     });
     
     // *** FINAL SOCKET CONNECTION HANDLERS ***
     socket.on('connect', () => {
+        const isReconnect = hasSocketConnected;
+        hasSocketConnected = true;
         console.info(`Socket.IO connected (${socket.id}) via ${socket.io.engine.transport.name}.`);
-        if (document.getElementById('marketplace').classList.contains('hidden') === false) {
-            fetchProducts(true);
-        }
+        if (isReconnect) showMessage("Real-time connection restored. Syncing marketplace...", 3000);
+        if (!document.hidden && isMarketplaceSectionVisible()) fetchProducts(true);
     });
 
     socket.on('connect_error', (error) => {
@@ -35,13 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Socket: Disconnected. Reason:', reason);
         if (reason !== 'io client disconnect') {
             showMessage("Real-time connection lost. Reconnecting...", 5000);
-        }
-    });
-    
-    socket.io.on('reconnect', () => {
-        showMessage("Real-time connection restored. Refreshing...", 3000);
-        if (!document.getElementById('marketplace').classList.contains('hidden')) {
-            fetchProducts(true);
         }
     });
     
@@ -73,29 +87,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (data.type === 'vote' && data.id != null && data.escrowId != null) {
             void refreshEscrowStateFromChain(String(data.id), String(data.escrowId));
         }
-        if (socket.connected && !['refunded', 'released', 'disputed', 'vote'].includes(data.type)) {
-          fetchProducts(true);
-          if (data.type === 'listed') {
-            window.setTimeout(() => {
-              const marketplace = document.getElementById('marketplace');
-              if (!document.hidden && marketplace && !marketplace.classList.contains('hidden')) {
-                fetchProducts(false, 0, false);
-              }
-            }, 1500);
-          }
-        }
+        if (data.type === 'listed') scheduleMarketplaceListingRefresh();
     });
   } else {
     console.warn("Socket.IO client library not found. Real-time updates disabled.");
   }
 
-  const marketplaceRefreshInterval = window.setInterval(() => {
-    const marketplace = document.getElementById('marketplace');
-    if (!document.hidden && marketplace && !marketplace.classList.contains('hidden')) {
-      fetchProducts(false, 0, false);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && isMarketplaceSectionVisible()) fetchProducts(true);
+  });
+  window.addEventListener('pagehide', () => {
+    if (marketplaceListingRefreshTimer !== null) {
+      window.clearTimeout(marketplaceListingRefreshTimer);
+      marketplaceListingRefreshTimer = null;
     }
-  }, marketplaceRefreshIntervalMs);
-  window.addEventListener('pagehide', () => window.clearInterval(marketplaceRefreshInterval), { once: true });
+  }, { once: true });
   
   await checkAuthState();
   renderUI();
@@ -104,9 +110,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   const initialSection = ({ '/': 'hero', '/index.html': 'hero', '/marketplace': 'marketplace', '/sell': 'sell-tab' } as Record<string, string>)[window.location.pathname] || 'hero';
   showSection(initialSection);
   if (initialSection === 'sell-tab' && !currentUser) showAuthModal();
-  initializeCustomSelect('category-filter', filterAndSortProducts);
+  initializeCustomSelect('category-filter', (value) => {
+    resetMarketplacePage();
+    filterAndSortProducts();
+    syncMarketplaceCategoryShortcuts(value);
+  });
   initializeCustomSelect('product-category');
-  initializeCustomSelect('sort-by', filterAndSortProducts);
+  initializeCustomSelect('sort-by', () => {
+    resetMarketplacePage();
+    filterAndSortProducts();
+  });
+  syncMarketplaceCategoryShortcuts('all');
+  document.getElementById('marketplace-category-shortcuts')?.addEventListener('click', (event) => {
+    const target = (event.target as Element).closest<HTMLButtonElement>('button[data-marketplace-category]');
+    if (!target) return;
+    const value = target.dataset.marketplaceCategory;
+    const option = Array.from(document.querySelectorAll<HTMLButtonElement>(
+      '#category-filter .dropdown-menu button[data-value]'
+    )).find((item) => item.dataset.value === value);
+    option?.click();
+  });
 
   await readOnlyProviderReady;
 
@@ -161,7 +184,6 @@ function applyProductSoldUpdate(productId, name = '', transactionHash = '') {
   window.PeerLoopAccount?.removeListing(productId);
   window.PeerLoopAccount?.invalidateHistory();
   handleRealTimeCartRemoval(productId, name);
-  fetchProducts(false, 0, false);
   if (!document.getElementById('user-profile-tab')?.classList.contains('hidden')) {
     window.PeerLoopAccount?.renderDashboard();
   }
@@ -259,6 +281,7 @@ document.getElementById('logout-btn').addEventListener('click', logout);
 const searchInput = document.getElementById('search-input');
 if (searchInput) {
   searchInput.addEventListener('input', () => {
+    resetMarketplacePage();
     debouncedFilterAndSort(100);
   });
 }
@@ -266,6 +289,7 @@ const priceFilter = document.getElementById('price-filter');
 if (priceFilter) {
   updatePriceFilterProgress(priceFilter as HTMLInputElement);
   priceFilter.addEventListener('input', () => {
+    resetMarketplacePage();
     updatePriceFilterProgress(priceFilter as HTMLInputElement);
     const bound = (priceFilter as HTMLInputElement).dataset.bound;
     const output = document.getElementById('price-filter-value');
@@ -278,7 +302,10 @@ if (priceFilter) {
 }
 const availableOnly = document.getElementById('available-only');
 if (availableOnly) {
-  availableOnly.addEventListener('change', filterAndSortProducts);
+  availableOnly.addEventListener('change', () => {
+    resetMarketplacePage();
+    filterAndSortProducts();
+  });
 }
 
 // --- Sell Form & Image Uploader Event Listeners ---

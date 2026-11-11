@@ -57,7 +57,11 @@ export function startServer() {
 
   server.listen(port, () => {
     console.log(`Backend server is running on http://localhost:${port}`);
-    const listenerHandle = startContractListener(io, { pollIntervalMs: 3000, lookbackBlocks: 3 });
+    const listenerHandle = startContractListener(io, {
+      pollIntervalMs: 3000,
+      lookbackBlocks: 3,
+      wssUrl: config.chainWssUrl
+    });
     if (!config.chainRpcUrl || config.chainRpcUrl.includes('your_')) {
       console.warn('Skipping blockchain listener because SEPOLIA_RPC_URL is still a placeholder. Add a real RPC URL in root .env to enable live contract events.');
     }

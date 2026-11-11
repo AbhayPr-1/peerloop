@@ -1,9 +1,10 @@
-// backend/contractListener.js
-// Polling-based contract listener (HTTPS RPC) with event deduplication
+// backend/contractListener.ts
+// WSS-first contract event listener with HTTP RPC polling fallback and event deduplication.
 const { ethers } = require('ethers');
 const config = require('./config').default;
 
 const RPC_URL = config.chainRpcUrl;
+const WSS_URL = config.chainWssUrl;
 const CONTRACT_ADDRESS = config.contractAddress;
 
 function hasPlaceholderRpcUrl(url) {
@@ -25,13 +26,23 @@ const MARKETPLACE_ABI = [
   'event EscrowResolutionVoted(uint256 escrowId, uint256 productId, address voter, bool releaseToSeller, uint8 votes)',
 ];
 
+const MARKETPLACE_EVENTS = [
+  ['ProductListed', 'listed'],
+  ['ProductSold', 'sold'],
+  ['ProductDeleted', 'deleted'],
+  ['EscrowRefunded', 'refunded'],
+  ['EscrowReleased', 'released'],
+  ['EscrowDisputed', 'disputed'],
+  ['EscrowResolutionVoted', 'vote']
+];
+
 /* Utilities */
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /*
   startContractListener(io, opts)
   opts:
-    - pollIntervalMs (ms) default 3000
+    - pollIntervalMs (ms) default 3000; used only when WSS is unavailable
     - lookbackBlocks default 2 (small lookback helps avoid missing reorgs)
     - dedupeCacheSize default 1000 (how many unique logs to remember)
 */
@@ -41,9 +52,12 @@ interface ListenerOptions {
   maxBlockRange?: number;
   dedupeCacheSize?: number;
   rpcUrl?: string;
+  wssUrl?: string;
   contractAddress?: string;
   provider?: any;
   contract?: any;
+  webSocketProvider?: any;
+  webSocketContract?: any;
   logger?: Pick<Console, 'log' | 'warn' | 'error'>;
   scheduler?: Pick<typeof globalThis, 'setInterval' | 'clearInterval' | 'setTimeout' | 'clearTimeout'>;
 }
@@ -59,6 +73,16 @@ function startContractListener(io, opts: ListenerOptions = {}) {
     ? opts.maxBlockRange
     : 10;
   const dedupeCacheSize = opts.dedupeCacheSize || 1000;
+  const configuredWssUrl = opts.wssUrl ?? (opts.rpcUrl ? undefined : WSS_URL);
+  const wssUrl = typeof configuredWssUrl === 'string'
+    && /^wss?:\/\//i.test(configuredWssUrl)
+    && !hasPlaceholderRpcUrl(configuredWssUrl)
+    ? configuredWssUrl
+    : undefined;
+
+  if (configuredWssUrl && !wssUrl) {
+    logger.warn('WebSocket RPC URL must be a valid ws:// or wss:// endpoint. Continuing with HTTP RPC polling.');
+  }
 
   if (!rpcUrl || !contractAddress || hasPlaceholderRpcUrl(rpcUrl)) {
     logger.warn('Contract listener not started: missing or placeholder RPC_URL/CONTRACT_ADDRESS.');
@@ -71,97 +95,279 @@ function startContractListener(io, opts: ListenerOptions = {}) {
   let stopped = false;
   let pollHandle = null;
   let startupPollHandle = null;
+  let reconnectHandle = null;
   let pollInProgress = false;
   let lastChecked = null; // last fully-processed block number
+  let reconnectDelayMs = 1000;
+  let connectingWebSocket = false;
+  let pendingWebSocketProvider = null;
+  let pendingWebSocketContract = null;
 
-  // dedupeSet stores keys "txHash:logIndex". Keep insertion order to prune oldest when size > dedupeCacheSize.
+  let activeWebSocketProvider = null;
+  let activeWebSocketContract = null;
+  let activeWebSocketListeners = [];
+  let activeBlockListener = null;
+  let activeSocketCloseCleanup = null;
+
+  // dedupeSet stores keys "txHash:logIndex". The insertion-order cap bounds memory.
   const dedupeSet = new Set();
 
   function addDedupe(key) {
     if (dedupeSet.has(key)) return false;
     dedupeSet.add(key);
-    // prune oldest if too many
     if (dedupeSet.size > dedupeCacheSize) {
-      // remove first inserted (Set maintains insertion order)
-      const it = dedupeSet.values();
-      const first = it.next().value;
+      const first = dedupeSet.values().next().value;
       if (first) dedupeSet.delete(first);
     }
     return true;
   }
 
+  function processEvents(events, type) {
+    for (const ev of events) {
+      const tx = ev.transactionHash || (ev.transaction && ev.transaction.hash) || '';
+      const logIndex = ev.index ?? ev.logIndex ?? ev.transactionIndex ?? 0;
+      const dedupeKey = `${tx}:${logIndex}`;
+      if (!addDedupe(dedupeKey)) continue;
+
+      let id = null, name = null, escrowId = null;
+      try {
+        if (ev.args) {
+          const eventId = ev.args.id ?? ev.args.productId;
+          id = eventId == null ? null : eventId.toString();
+          name = ev.args.name ?? null;
+          escrowId = ev.args.escrowId == null ? null : ev.args.escrowId.toString();
+        }
+      } catch (error) {
+        logger.warn('Error reading contract event args', error);
+      }
+
+      logger.log(`[CONTRACT EVENT] ${type} tx=${tx} logIndex=${logIndex} id=${id} name=${name}`);
+      io.emit('product_updated', { type, id, name, escrowId, tx, logIndex });
+    }
+  }
+
+  function startHttpPolling() {
+    if (stopped || pollHandle) return;
+    pollHandle = scheduler.setInterval(pollOnce, pollIntervalMs);
+    startupPollHandle = scheduler.setTimeout(() => {
+      startupPollHandle = null;
+      void pollOnce();
+    }, 200);
+  }
+
+  function stopHttpPolling() {
+    if (pollHandle) {
+      scheduler.clearInterval(pollHandle);
+      pollHandle = null;
+    }
+    if (startupPollHandle) {
+      scheduler.clearTimeout(startupPollHandle);
+      startupPollHandle = null;
+    }
+  }
+
+  function removeSocketCloseListener(provider, cleanup) {
+    if (cleanup) {
+      try { cleanup(); } catch (_) {}
+      return;
+    }
+    try {
+      const socket = provider && provider.websocket;
+      if (socket && typeof socket.removeEventListener === 'function' && activeSocketCloseCleanup) {
+        socket.removeEventListener('close', activeSocketCloseCleanup);
+      } else if (socket && typeof socket.off === 'function' && activeSocketCloseCleanup) {
+        socket.off('close', activeSocketCloseCleanup);
+      }
+    } catch (_) {}
+  }
+
+  function cleanupWebSocket(provider, wsContract, listeners, blockListener, closeCleanup) {
+    removeSocketCloseListener(provider, closeCleanup);
+    for (const [eventName, listener] of listeners || []) {
+      try { Promise.resolve(wsContract.off(eventName, listener)).catch(() => {}); } catch (_) {}
+    }
+    if (blockListener) {
+      try { Promise.resolve(provider.off('block', blockListener)).catch(() => {}); } catch (_) {}
+    }
+    try { provider.destroy(); } catch (_) {}
+  }
+
+  function detachActiveWebSocket() {
+    const resources = {
+      provider: activeWebSocketProvider,
+      contract: activeWebSocketContract,
+      listeners: activeWebSocketListeners,
+      blockListener: activeBlockListener,
+      closeCleanup: activeSocketCloseCleanup
+    };
+    activeWebSocketProvider = null;
+    activeWebSocketContract = null;
+    activeWebSocketListeners = [];
+    activeBlockListener = null;
+    activeSocketCloseCleanup = null;
+    return resources;
+  }
+
+  function scheduleWebSocketReconnect() {
+    if (stopped || !wssUrl || reconnectHandle || activeWebSocketProvider) return;
+    const delayMs = reconnectDelayMs;
+    reconnectDelayMs = Math.min(reconnectDelayMs * 2, 30000);
+    reconnectHandle = scheduler.setTimeout(() => {
+      reconnectHandle = null;
+      void connectWebSocket();
+    }, delayMs);
+  }
+
+  function handleWebSocketClose(provider) {
+    if (stopped || activeWebSocketProvider !== provider) return;
+    logger.warn('Sepolia WSS connection closed. Falling back to HTTP RPC and retrying WSS.');
+    const resources = detachActiveWebSocket();
+    cleanupWebSocket(resources.provider, resources.contract, resources.listeners, resources.blockListener, resources.closeCleanup);
+    startHttpPolling();
+    scheduleWebSocketReconnect();
+  }
+
+  async function waitForPollToFinish() {
+    while (pollInProgress && !stopped) await sleep(20);
+  }
+
+  async function connectWebSocket() {
+    if (stopped || !wssUrl || connectingWebSocket || activeWebSocketProvider) return false;
+    connectingWebSocket = true;
+    let candidateProvider = null;
+    let candidateContract = null;
+    const candidateListeners = [];
+    let candidateBlockListener = null;
+    let candidateCloseCleanup = null;
+
+    try {
+      candidateProvider = opts.webSocketProvider || new ethers.WebSocketProvider(wssUrl);
+      candidateContract = opts.webSocketContract || new ethers.Contract(contractAddress, MARKETPLACE_ABI, candidateProvider);
+      pendingWebSocketProvider = candidateProvider;
+      pendingWebSocketContract = candidateContract;
+
+      let readyTimeout;
+      try {
+        await Promise.race([
+          candidateProvider.getBlockNumber(),
+          new Promise((_, reject) => {
+            readyTimeout = scheduler.setTimeout(() => reject(new Error('WSS RPC did not respond in time.')), 7000);
+          })
+        ]);
+      } finally {
+        if (readyTimeout) scheduler.clearTimeout(readyTimeout);
+      }
+      if (stopped) throw new Error('Contract listener stopped during WSS startup.');
+
+      activeWebSocketProvider = candidateProvider;
+      activeWebSocketContract = candidateContract;
+      activeWebSocketListeners = candidateListeners;
+
+      const socket = candidateProvider.websocket;
+      const closeHandler = () => handleWebSocketClose(candidateProvider);
+      if (socket && typeof socket.addEventListener === 'function') {
+        socket.addEventListener('close', closeHandler);
+        candidateCloseCleanup = () => socket.removeEventListener('close', closeHandler);
+      } else if (socket && typeof socket.on === 'function') {
+        socket.on('close', closeHandler);
+        candidateCloseCleanup = () => socket.off('close', closeHandler);
+      } else {
+        throw new Error('The WSS transport does not expose a close event.');
+      }
+      activeSocketCloseCleanup = candidateCloseCleanup;
+
+      const subscriptionPromises = MARKETPLACE_EVENTS.map(([eventName, type]) => {
+        const listener = (...args) => {
+          const candidate = args[args.length - 1];
+          const event = candidate?.args ? candidate : candidate?.log?.args ? candidate.log : null;
+          if (!event) return;
+          processEvents([event], type);
+        };
+        candidateListeners.push([eventName, listener]);
+        return candidateContract.on(eventName, listener);
+      });
+      await Promise.all(subscriptionPromises);
+
+      await waitForPollToFinish();
+      if (!stopped) await pollOnce(true);
+      if (stopped || activeWebSocketProvider !== candidateProvider) {
+        throw new Error('WSS connection closed while synchronizing missed blocks.');
+      }
+
+      candidateBlockListener = (blockNumber) => {
+        const numericBlock = Number(blockNumber);
+        if (Number.isSafeInteger(numericBlock)) {
+          lastChecked = Math.max(lastChecked ?? 0, numericBlock);
+        }
+      };
+      activeBlockListener = candidateBlockListener;
+      await candidateProvider.on('block', candidateBlockListener);
+
+      if (stopped || activeWebSocketProvider !== candidateProvider) {
+        throw new Error('WSS connection closed while subscribing to new blocks.');
+      }
+
+      stopHttpPolling();
+      reconnectDelayMs = 1000;
+      logger.log('Contract event listener connected through WSS; HTTP polling is paused.');
+      return true;
+    } catch (error) {
+      if (activeWebSocketProvider === candidateProvider) {
+        const resources = detachActiveWebSocket();
+        cleanupWebSocket(resources.provider, resources.contract, resources.listeners, resources.blockListener, resources.closeCleanup);
+      } else if (candidateProvider) {
+        cleanupWebSocket(candidateProvider, candidateContract, candidateListeners, candidateBlockListener, candidateCloseCleanup);
+      }
+      if (!stopped) logger.warn('WSS RPC unavailable; continuing with HTTP event polling.', error && error.message ? error.message : error);
+      return false;
+    } finally {
+      if (pendingWebSocketProvider === candidateProvider) {
+        pendingWebSocketProvider = null;
+        pendingWebSocketContract = null;
+      }
+      connectingWebSocket = false;
+      if (!stopped && !activeWebSocketProvider) {
+        startHttpPolling();
+        scheduleWebSocketReconnect();
+      }
+    }
+  }
+
   async function init() {
     try {
       const latest = await provider.getBlockNumber();
-      // start from latest (so first poll will check from latest - lookback to latest)
       lastChecked = Math.max(0, latest - 1);
-      logger.log(`Contract polling initialized. Starting from block ${lastChecked + 1}`);
-    } catch (err) {
-      logger.error('Failed to initialize block number:', err);
+      logger.log(`Contract listener initialized. Starting from block ${lastChecked + 1}`);
+    } catch (error) {
+      logger.error('Failed to initialize block number:', error);
       lastChecked = null;
     }
 
     if (stopped) return;
-    pollHandle = scheduler.setInterval(pollOnce, pollIntervalMs);
-    // run immediately once
-    startupPollHandle = scheduler.setTimeout(pollOnce, 200);
+    startHttpPolling();
+    if (wssUrl) void connectWebSocket();
   }
 
-  async function pollOnce() {
+  async function pollOnce(forceLookback = false) {
     if (stopped || pollInProgress) return;
     pollInProgress = true;
     try {
       const latest = await provider.getBlockNumber();
-      if (lastChecked === null) {
-        lastChecked = Math.max(0, latest - 1);
-      }
-      if (latest <= lastChecked) {
-        return; // nothing new
-      }
-
-      // Helper to process an event array
-      const processEvents = (events, type) => {
-        for (const ev of events) {
-          const tx = ev.transactionHash || (ev.transaction && ev.transaction.hash) || '';
-          const logIndex = ev.index ?? ev.logIndex ?? ev.transactionIndex ?? 0;
-          const dedupeKey = `${tx}:${logIndex}`;
-
-          // If already processed, skip
-          if (!addDedupe(dedupeKey)) {
-            // already processed -> skip
-            continue;
-          }
-
-          // extract id/name safely
-          let id = null, name = null, escrowId = null;
-          try {
-            if (ev.args) {
-              const eventId = ev.args.id ?? ev.args.productId;
-              id = eventId == null ? null : eventId.toString();
-              name = ev.args.name ?? null;
-              escrowId = ev.args.escrowId == null ? null : ev.args.escrowId.toString();
-            }
-          } catch (e) {
-            logger.warn('Error reading ev.args', e);
-          }
-
-          logger.log(`[POLL EVENT] ${type} tx=${tx} logIndex=${logIndex} id=${id} name=${name}`);
-          io.emit('product_updated', { type, id, name, escrowId, tx, logIndex });
-        }
-      };
+      if (lastChecked === null) lastChecked = Math.max(0, latest - 1);
+      if (latest <= lastChecked && !forceLookback) return;
 
       const from = Math.max(0, lastChecked + 1 - lookbackBlocks);
       for (let chunkStart = from; chunkStart <= latest; chunkStart += maxBlockRange) {
         const chunkEnd = Math.min(latest, chunkStart + maxBlockRange - 1);
-        logger.log(`Polling blocks ${chunkStart} → ${chunkEnd} (lastChecked=${lastChecked})`);
-
-        const listed = await contract.queryFilter('ProductListed', chunkStart, chunkEnd);
-        const sold = await contract.queryFilter('ProductSold', chunkStart, chunkEnd);
-        const deleted = await contract.queryFilter('ProductDeleted', chunkStart, chunkEnd);
-        const refunded = await contract.queryFilter('EscrowRefunded', chunkStart, chunkEnd);
-        const released = await contract.queryFilter('EscrowReleased', chunkStart, chunkEnd);
-        const disputed = await contract.queryFilter('EscrowDisputed', chunkStart, chunkEnd);
-        const votes = await contract.queryFilter('EscrowResolutionVoted', chunkStart, chunkEnd);
+        const [listed, sold, deleted, refunded, released, disputed, votes] = await Promise.all([
+          contract.queryFilter('ProductListed', chunkStart, chunkEnd),
+          contract.queryFilter('ProductSold', chunkStart, chunkEnd),
+          contract.queryFilter('ProductDeleted', chunkStart, chunkEnd),
+          contract.queryFilter('EscrowRefunded', chunkStart, chunkEnd),
+          contract.queryFilter('EscrowReleased', chunkStart, chunkEnd),
+          contract.queryFilter('EscrowDisputed', chunkStart, chunkEnd),
+          contract.queryFilter('EscrowResolutionVoted', chunkStart, chunkEnd)
+        ]);
         if (listed.length || sold.length || deleted.length || refunded.length || released.length || disputed.length || votes.length) {
           logger.log(`Events found — listed:${listed.length} sold:${sold.length} deleted:${deleted.length} refunded:${refunded.length} released:${released.length} disputed:${disputed.length} votes:${votes.length}`);
         }
@@ -176,22 +382,35 @@ function startContractListener(io, opts: ListenerOptions = {}) {
       }
 
       lastChecked = latest;
-    } catch (err) {
-      logger.error('Polling error:', err && err.message ? err.message : err);
+    } catch (error) {
+      logger.error('HTTP RPC polling error:', error && error.message ? error.message : error);
       await sleep(2000);
     } finally {
       pollInProgress = false;
     }
   }
 
-  init().catch(err => {
-    logger.error('Failed to start contract listener:', err);
+  init().catch(error => {
+    logger.error('Failed to start contract listener:', error);
   });
 
   function stop() {
     stopped = true;
-    if (pollHandle) scheduler.clearInterval(pollHandle);
-    if (startupPollHandle) scheduler.clearTimeout(startupPollHandle);
+    stopHttpPolling();
+    if (reconnectHandle) scheduler.clearTimeout(reconnectHandle);
+    reconnectHandle = null;
+    const activeProvider = activeWebSocketProvider;
+    if (activeProvider) {
+      const resources = detachActiveWebSocket();
+      cleanupWebSocket(resources.provider, resources.contract, resources.listeners, resources.blockListener, resources.closeCleanup);
+    }
+    if (pendingWebSocketProvider) {
+      const pendingProvider = pendingWebSocketProvider;
+      const pendingContract = pendingWebSocketContract;
+      pendingWebSocketProvider = null;
+      pendingWebSocketContract = null;
+      if (pendingProvider !== activeProvider) cleanupWebSocket(pendingProvider, pendingContract, [], null, null);
+    }
     try { provider.destroy && provider.destroy(); } catch (_) {}
     logger.log('Contract listener stopped.');
   }

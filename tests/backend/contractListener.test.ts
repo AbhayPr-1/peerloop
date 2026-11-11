@@ -9,6 +9,8 @@ test('contract listener emits the existing product_updated payload and stops its
   const io = new EventEmitter();
   const emitted = once(io, 'product_updated');
   const queriedRanges: Array<[string, number, number]> = [];
+  let activeQueries = 0;
+  let maxConcurrentQueries = 0;
   let blockNumberCalls = 0;
   let providerDestroyed = false;
   let intervalCleared = false;
@@ -44,8 +46,15 @@ test('contract listener emits the existing product_updated payload and stops its
     },
     contract: {
       async queryFilter(name: string, from: number, to: number) {
-        queriedRanges.push([name, from, to]);
-        return name === 'ProductSold' ? [event] : [];
+        activeQueries += 1;
+        maxConcurrentQueries = Math.max(maxConcurrentQueries, activeQueries);
+        try {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          queriedRanges.push([name, from, to]);
+          return name === 'ProductSold' ? [event] : [];
+        } finally {
+          activeQueries -= 1;
+        }
       }
     },
     logger: silentLogger,
@@ -71,6 +80,7 @@ test('contract listener emits the existing product_updated payload and stops its
       tx: '0xabc', logIndex: 4
     });
     assert.ok(queriedRanges.length >= 7);
+    assert.equal(maxConcurrentQueries, 7);
     assert.ok(queriedRanges.every(([, from, to]) => from === 97 && to === 101));
   } finally {
     listener.stop();
@@ -89,4 +99,108 @@ test('contract listener safely remains disabled for missing or placeholder confi
   });
   assert.equal(logger.warnings, 1);
   assert.doesNotThrow(() => listener.stop());
+});
+
+test('contract listener prefers WSS subscriptions and restores HTTP polling on disconnect', async () => {
+  const io = new EventEmitter();
+  const eventHandlers = new Map<string, (...args: any[]) => void>();
+  const blockHandlers = new Map<string, (...args: any[]) => void>();
+  const intervalHandles = new Set<{ callback: () => void }>();
+  let activeIntervals = 0;
+  let webSocketProviderDestroyed = false;
+  let httpProviderDestroyed = false;
+
+  const scheduler = {
+    setInterval(callback: () => void) {
+      const handle = { callback };
+      intervalHandles.add(handle);
+      activeIntervals += 1;
+      return handle;
+    },
+    clearInterval(handle: { callback: () => void }) {
+      if (intervalHandles.delete(handle)) activeIntervals -= 1;
+    },
+    setTimeout: globalThis.setTimeout.bind(globalThis),
+    clearTimeout: globalThis.clearTimeout.bind(globalThis)
+  };
+
+  const websocket = new EventEmitter() as EventEmitter & {
+    addEventListener: (name: string, handler: (...args: any[]) => void) => void;
+    removeEventListener: (name: string, handler: (...args: any[]) => void) => void;
+  };
+  websocket.addEventListener = (name, handler) => { websocket.on(name, handler); };
+  websocket.removeEventListener = (name, handler) => { websocket.off(name, handler); };
+
+  const webSocketProvider = {
+    websocket,
+    async getBlockNumber() { return 101; },
+    async on(name: string, handler: (...args: any[]) => void) {
+      blockHandlers.set(name, handler);
+      return this;
+    },
+    async off(name: string) {
+      blockHandlers.delete(name);
+      return this;
+    },
+    destroy() {
+      webSocketProviderDestroyed = true;
+      websocket.emit('close');
+    }
+  };
+  const webSocketContract = {
+    async on(name: string, handler: (...args: any[]) => void) {
+      eventHandlers.set(name, handler);
+      return this;
+    },
+    async off(name: string) {
+      eventHandlers.delete(name);
+      return this;
+    }
+  };
+
+  const listener = startContractListener(io, {
+    rpcUrl: 'https://rpc.test.invalid',
+    wssUrl: 'wss://rpc.test.invalid',
+    contractAddress: '0x0000000000000000000000000000000000000001',
+    pollIntervalMs: 60_000,
+    provider: {
+      async getBlockNumber() { return 101; },
+      async destroy() { httpProviderDestroyed = true; }
+    },
+    contract: { async queryFilter() { return []; } },
+    webSocketProvider,
+    webSocketContract,
+    logger: silentLogger,
+    scheduler
+  });
+
+  try {
+    for (let attempt = 0; attempt < 100 && !eventHandlers.has('ProductListed'); attempt += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    assert.ok(eventHandlers.has('ProductListed'), 'WSS event subscriptions should be installed');
+    assert.equal(activeIntervals, 0, 'HTTP polling should pause while WSS is active');
+
+    const emitted = once(io, 'product_updated');
+    eventHandlers.get('ProductListed')?.('9', 'WSS listing', 1n, 'ipfs://image', '0xabc', {
+      transactionHash: '0xwss',
+      index: 2,
+      blockNumber: 102,
+      args: { id: 9n, name: 'WSS listing' }
+    });
+    const [payload] = await emitted;
+    assert.deepEqual(payload, {
+      type: 'listed', id: '9', name: 'WSS listing', escrowId: null,
+      tx: '0xwss', logIndex: 2
+    });
+
+    websocket.emit('close');
+    assert.equal(activeIntervals, 1, 'HTTP polling should resume after WSS disconnects');
+  } finally {
+    listener.stop();
+  }
+
+  assert.equal(activeIntervals, 0);
+  assert.equal(webSocketProviderDestroyed, true);
+  assert.equal(httpProviderDestroyed, true);
 });
