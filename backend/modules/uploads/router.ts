@@ -16,6 +16,29 @@ export function createUploadRouter(
   auth: typeof defaultAuth = defaultAuth
 ) {
   const router = express.Router();
+  const maxConcurrentUploads = 4;
+  let activeUploads = 0;
+
+  function limitConcurrentUploads(req: Request, res: Response, next: NextFunction) {
+    if (activeUploads >= maxConcurrentUploads) {
+      res.set('Retry-After', '2');
+      return res.status(503).json({ msg: 'Image upload capacity is busy. Try again shortly.' });
+    }
+
+    activeUploads += 1;
+    let released = false;
+    const releaseSlot = () => {
+      if (released) return;
+      released = true;
+      activeUploads = Math.max(0, activeUploads - 1);
+    };
+    res.once('finish', releaseSlot);
+    req.once('aborted', () => {
+      if (!res.locals.uploadServiceStarted) releaseSlot();
+    });
+    res.locals.releaseUploadSlot = releaseSlot;
+    return next();
+  }
 
   function receiveImage(req: Request, res: Response, next: NextFunction) {
     upload.single('productImage')(req, res, (error: unknown) => {
@@ -33,7 +56,9 @@ export function createUploadRouter(
     });
   }
 
-  router.post('/', auth, receiveImage, async (req, res) => {
+  router.post('/', auth, limitConcurrentUploads, receiveImage, async (req, res) => {
+    const releaseUploadSlot = res.locals.releaseUploadSlot as (() => void) | undefined;
+    res.locals.uploadServiceStarted = true;
     try {
       const result = await uploadService.uploadImage(
         req.file!.buffer,
@@ -48,6 +73,8 @@ export function createUploadRouter(
       }
       console.error('Image upload failed:', error instanceof Error ? error.message : error);
       return res.status(500).json({ msg: 'Image upload failed.' });
+    } finally {
+      releaseUploadSlot?.();
     }
   });
 

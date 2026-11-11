@@ -62,6 +62,27 @@ export function createBackendConfig(environment: NodeJS.ProcessEnv): BackendConf
     if (!jwtSecret) {
       throw new Error('JWT_SECRET must be configured for production runs.');
     }
+    if (Buffer.byteLength(jwtSecret, 'utf8') < 32) {
+      throw new Error('JWT_SECRET must contain at least 32 bytes in production.');
+    }
+
+    for (const [name, value] of [
+      ['APP_ORIGIN', appOrigin],
+      ['API_ORIGIN', environment.API_ORIGIN?.trim()]
+    ] as const) {
+      if (!value) continue;
+      for (const origin of value.split(',').map((entry) => entry.trim()).filter(Boolean)) {
+        let parsed: URL;
+        try { parsed = new URL(origin); } catch { throw new Error(`${name} must contain valid origins.`); }
+        const localHost = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+        if (parsed.protocol !== 'https:' && !localHost) {
+          throw new Error(`${name} must use HTTPS in production, except for localhost.`);
+        }
+        if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
+          throw new Error(`${name} must contain origins without paths, queries, or fragments.`);
+        }
+      }
+    }
   }
 
   return {

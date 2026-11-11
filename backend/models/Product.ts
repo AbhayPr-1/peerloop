@@ -13,4 +13,10 @@ const ProductSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// Support the filter + newest-first query shapes used by the retained product
+// and user routers without changing their API behavior.
+ProductSchema.index({ status: 1, createdAt: -1 });
+ProductSchema.index({ seller: 1, status: 1, createdAt: -1 });
+ProductSchema.index({ buyer: 1, status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Product', ProductSchema);

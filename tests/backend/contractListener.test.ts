@@ -194,6 +194,33 @@ test('contract listener prefers WSS subscriptions and restores HTTP polling on d
       tx: '0xwss', logIndex: 2
     });
 
+    const eventCases = [
+      ['ProductListed', 'listed', { id: 10n, name: 'Listed item' }],
+      ['ProductSold', 'sold', { id: 11n, name: 'Sold item' }],
+      ['ProductDeleted', 'deleted', { id: 12n, name: 'Deleted item' }],
+      ['EscrowRefunded', 'refunded', { productId: 13n, escrowId: 103n }],
+      ['EscrowReleased', 'released', { productId: 14n, escrowId: 104n }],
+      ['EscrowDisputed', 'disputed', { productId: 15n, escrowId: 105n }],
+      ['EscrowResolutionVoted', 'vote', { productId: 16n, escrowId: 106n }]
+    ] as const;
+    for (const [eventName, type, args] of eventCases) {
+      const nextUpdate = once(io, 'product_updated');
+      eventHandlers.get(eventName)?.('0xignored', {
+        transactionHash: `0x${type}`,
+        index: 3,
+        args
+      });
+      const [update] = await nextUpdate;
+      assert.deepEqual(update, {
+        type,
+        id: String('id' in args ? args.id : args.productId),
+        name: 'name' in args ? args.name : null,
+        escrowId: 'escrowId' in args ? String(args.escrowId) : null,
+        tx: `0x${type}`,
+        logIndex: 3
+      });
+    }
+
     websocket.emit('close');
     assert.equal(activeIntervals, 1, 'HTTP polling should resume after WSS disconnects');
   } finally {

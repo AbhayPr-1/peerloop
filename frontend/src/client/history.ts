@@ -22,12 +22,70 @@
   const RPC_TOPICS = [[...HISTORY_TOPICS]];
   const WALLET_HISTORY_CACHE_PREFIX = `peerloop:wallet-history:v1:${marketplaceAddress.toLowerCase()}:`;
   const WALLET_HISTORY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+  const WALLET_HISTORY_CACHE_MAX_ENTRIES = 20;
   const walletHistoryCache = new Map();
+  const activeHistoryWallets = new Set();
+  let walletHistoryCacheEpoch = 0;
   let loadPromise = null;
   let cachedEvents = null;
   let cachedEventsUntil = 0;
   const confirmedPurchasesByHash = new Map();
   const confirmedEscrowStates = new Map();
+
+  function isValidWalletHistoryCache(payload, now = Date.now()) {
+    return Boolean(payload && Number.isFinite(payload.savedAt)
+      && payload.savedAt <= now
+      && now - payload.savedAt <= WALLET_HISTORY_CACHE_MAX_AGE
+      && Array.isArray(payload.history?.purchased)
+      && Array.isArray(payload.history?.sold));
+  }
+
+  function trimInMemoryWalletHistoryCache(preserveKey) {
+    while (walletHistoryCache.size > WALLET_HISTORY_CACHE_MAX_ENTRIES) {
+      const oldestKey = walletHistoryCache.keys().next().value;
+      if (!oldestKey) return;
+      const oldestValue = walletHistoryCache.get(oldestKey);
+      walletHistoryCache.delete(oldestKey);
+      if (oldestKey === preserveKey) walletHistoryCache.set(oldestKey, oldestValue);
+    }
+  }
+
+  function pruneSessionWalletHistoryCache(preserveKey = null) {
+    if (typeof sessionStorage === 'undefined') return;
+    try {
+      const now = Date.now();
+      const entries = [];
+      for (let index = 0; index < sessionStorage.length; index += 1) {
+        const key = sessionStorage.key(index);
+        if (!key || !key.startsWith(WALLET_HISTORY_CACHE_PREFIX)) continue;
+        try {
+          const payload = JSON.parse(sessionStorage.getItem(key) || 'null');
+          if (!isValidWalletHistoryCache(payload, now)) {
+            sessionStorage.removeItem(key);
+            index -= 1;
+            continue;
+          }
+          entries.push({ key, savedAt: payload.savedAt });
+        } catch (_) {
+          sessionStorage.removeItem(key);
+          index -= 1;
+        }
+      }
+
+      entries.sort((a, b) => b.savedAt - a.savedAt);
+      const keep = new Set();
+      if (preserveKey && entries.some((entry) => entry.key === preserveKey)) keep.add(preserveKey);
+      for (const entry of entries) {
+        if (keep.size >= WALLET_HISTORY_CACHE_MAX_ENTRIES) break;
+        keep.add(entry.key);
+      }
+      entries.forEach(({ key }) => {
+        if (!keep.has(key)) sessionStorage.removeItem(key);
+      });
+    } catch (_) {
+      // Storage may be blocked or full; history still works from chain reads.
+    }
+  }
 
   function readWalletHistoryCache(walletAddress) {
     const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
@@ -43,31 +101,34 @@
         }
       } catch (_) {}
     }
-    if (!cached || !Number.isFinite(cached.savedAt) || cached.savedAt > Date.now()
-      || Date.now() - cached.savedAt > WALLET_HISTORY_CACHE_MAX_AGE
-      || !Array.isArray(cached.history?.purchased) || !Array.isArray(cached.history?.sold)) {
+    if (!isValidWalletHistoryCache(cached)) {
       walletHistoryCache.delete(cacheKey);
       if (typeof sessionStorage !== 'undefined') {
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
       }
       return null;
     }
+    walletHistoryCache.delete(cacheKey);
+    walletHistoryCache.set(cacheKey, cached);
+    trimInMemoryWalletHistoryCache(cacheKey);
+    pruneSessionWalletHistoryCache(cacheKey);
     return cached.history;
   }
 
   function saveWalletHistoryCache(walletAddress, history) {
     const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
     const payload = { savedAt: Date.now(), history };
+    walletHistoryCache.delete(cacheKey);
     walletHistoryCache.set(cacheKey, payload);
+    trimInMemoryWalletHistoryCache(cacheKey);
     if (typeof sessionStorage !== 'undefined') {
-      try {
-        sessionStorage.setItem(cacheKey, JSON.stringify(payload));
-      } catch (_) {}
-    }
-    if (walletHistoryCache.size > 20) {
-      walletHistoryCache.delete(walletHistoryCache.keys().next().value);
+      pruneSessionWalletHistoryCache(cacheKey);
+      try { sessionStorage.setItem(cacheKey, JSON.stringify(payload)); } catch (_) {}
+      pruneSessionWalletHistoryCache(cacheKey);
     }
   }
+
+  pruneSessionWalletHistoryCache();
 
   async function mapWithConcurrency(items, concurrency, callback) {
     const results = new Array(items.length);
@@ -302,7 +363,9 @@
       throw new Error('A valid wallet address is required to load history.');
     }
 
+    const cacheEpoch = walletHistoryCacheEpoch;
     const lowerAddress = walletAddress.toLowerCase();
+    activeHistoryWallets.add(lowerAddress);
     const progressEvents = new Map();
     const indexedEvents = await getSoldEvents((events) => {
       events.forEach((event) => {
@@ -334,7 +397,9 @@
       sold: matchingEvents.filter((product) => product.seller.toLowerCase() === lowerAddress),
       purchased: matchingEvents.filter((product) => product.buyer.toLowerCase() === lowerAddress)
     };
-    saveWalletHistoryCache(lowerAddress, walletHistory);
+    if (cacheEpoch === walletHistoryCacheEpoch && activeHistoryWallets.has(lowerAddress)) {
+      saveWalletHistoryCache(lowerAddress, walletHistory);
+    }
     return walletHistory;
   };
 
@@ -346,6 +411,7 @@
   global.clearWalletTransactionHistoryCache = function (walletAddress) {
     if (ethers.utils.isAddress(walletAddress)) {
       const cacheKey = `${WALLET_HISTORY_CACHE_PREFIX}${walletAddress.toLowerCase()}`;
+      activeHistoryWallets.delete(walletAddress.toLowerCase());
       walletHistoryCache.delete(cacheKey);
       if (typeof sessionStorage !== 'undefined') {
         try { sessionStorage.removeItem(cacheKey); } catch (_) {}
@@ -353,8 +419,26 @@
     }
   };
 
+  global.clearAllWalletTransactionHistoryCache = function () {
+    walletHistoryCacheEpoch += 1;
+    activeHistoryWallets.clear();
+    walletHistoryCache.clear();
+    confirmedPurchasesByHash.clear();
+    confirmedEscrowStates.clear();
+    if (typeof sessionStorage === 'undefined') return;
+    try {
+      const keysToRemove = [];
+      for (let index = 0; index < sessionStorage.length; index += 1) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith(WALLET_HISTORY_CACHE_PREFIX)) keysToRemove.push(key);
+      }
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+    } catch (_) {}
+  };
+
   global.enrichWalletTransactionHistory = async function (walletAddress, walletHistory) {
     const lowerAddress = walletAddress.toLowerCase();
+    const cacheEpoch = walletHistoryCacheEpoch;
     const eventsByHash = new Map();
     [...walletHistory.purchased, ...walletHistory.sold].forEach((event) => {
       eventsByHash.set(String(event.transactionHash || event._id).toLowerCase(), event);
@@ -383,7 +467,9 @@
       sold: walletHistory.sold.map((event) => enrichedByHash.get(String(event.transactionHash || event._id).toLowerCase()) || event),
       purchased: walletHistory.purchased.map((event) => enrichedByHash.get(String(event.transactionHash || event._id).toLowerCase()) || event)
     };
-    saveWalletHistoryCache(lowerAddress, enrichedHistory);
+    if (cacheEpoch === walletHistoryCacheEpoch && activeHistoryWallets.has(lowerAddress)) {
+      saveWalletHistoryCache(lowerAddress, enrichedHistory);
+    }
     return enrichedHistory;
   };
 
@@ -427,7 +513,7 @@
     });
     if (walletAddress && ethers.utils.isAddress(walletAddress)) {
       const cachedHistory = readWalletHistoryCache(walletAddress);
-      if (cachedHistory) {
+      if (cachedHistory && activeHistoryWallets.has(walletAddress.toLowerCase())) {
         for (const event of [...cachedHistory.purchased, ...cachedHistory.sold]) {
           if (event._id !== String(productId) || String(event.escrowId) !== normalizedEscrowId) continue;
           event.escrowState = Number(state);

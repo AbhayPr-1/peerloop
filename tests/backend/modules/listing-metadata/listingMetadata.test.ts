@@ -70,7 +70,7 @@ test('listing metadata routes preserve category reads and owner-verified writes'
     configuredContract = contractAddress;
     const categories = await fetch(url);
     assert.equal(categories.status, 200);
-    assert.equal(categories.headers.get('cache-control'), 'no-store');
+    assert.equal(categories.headers.get('cache-control'), 'public, max-age=10, stale-while-revalidate=20');
     assert.deepEqual(await categories.json(), { '7': 'electronics' });
 
     const unauthorized = await postCategory({ productId: '8', category: 'gadgets' }, '');

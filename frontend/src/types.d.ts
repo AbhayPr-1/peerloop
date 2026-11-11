@@ -94,6 +94,7 @@ interface Window {
   ): Promise<{ purchased: any[]; sold: any[] }>;
   getCachedWalletTransactionHistory(walletAddress: string): { purchased: any[]; sold: any[] } | null;
   clearWalletTransactionHistoryCache(walletAddress: string): void;
+  clearAllWalletTransactionHistoryCache(): void;
   enrichWalletTransactionHistory(
     walletAddress: string,
     history: { purchased: any[]; sold: any[] }

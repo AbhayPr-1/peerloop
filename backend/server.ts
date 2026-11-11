@@ -1,5 +1,4 @@
 const config = require('./config').default;
-const dns = require('dns');
 const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -7,9 +6,6 @@ const startContractListener = require('./contractListener');
 const { createApp } = require('./app');
 
 export function startServer() {
-  // Fix MongoDB Atlas DNS resolution for this process.
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
-
   const appOrigins = config.appOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
   const app = createApp({
     appOrigin: config.appOrigin,
@@ -27,8 +23,17 @@ export function startServer() {
       },
       methods: ['GET', 'POST']
     },
-    pingTimeout: 60000,
-    pingInterval: 10000
+    allowRequest: (request, callback) => {
+      const origin = request.headers.origin;
+      if (!origin || !appOrigins.includes(origin)) {
+        callback('Origin not allowed', false);
+        return;
+      }
+      callback(null, true);
+    },
+    // Keep idle connections cheap while detecting dead peers promptly.
+    pingTimeout: 20000,
+    pingInterval: 25000
   });
 
   io.on('connection', (socket) => {

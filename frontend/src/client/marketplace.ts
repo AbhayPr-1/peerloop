@@ -5,6 +5,7 @@ let productRefreshVersion = 0;
 let filterDebounceTimer = null;
 const MARKETPLACE_PAGE_SIZE = 12;
 let currentMarketplacePage = 1;
+let marketplaceHasLoaded = false;
 
 function resetMarketplacePage() {
   currentMarketplacePage = 1;
@@ -255,16 +256,21 @@ function markProductAvailable(productId, historyRecord = null) {
 }
 
 async function loadProductsFromChain() {
-    const productsFromChain = await readMarketplaceProducts();
-    let categories = {};
-    try {
-        const categoryData = await window.PeerLoopApi.listingMetadata.getAll(1500);
-        if (!categoryData || typeof categoryData !== 'object' || Array.isArray(categoryData)) {
-            throw new Error('Category service returned invalid data.');
-        }
-        categories = categoryData;
-    } catch (error) {
+    const categoriesPromise = window.PeerLoopApi.listingMetadata.getAll(1500).catch((error) => {
         console.warn('Listing categories are unavailable; showing products with their default category.', error.message);
+        return null;
+    });
+    const [productsFromChain, categoryData] = await Promise.all([
+        readMarketplaceProducts(),
+        categoriesPromise
+    ]);
+    let categories = {};
+    if (categoryData !== null) {
+        if (!categoryData || typeof categoryData !== 'object' || Array.isArray(categoryData)) {
+            console.warn('Listing categories are unavailable; showing products with their default category.');
+        } else {
+            categories = categoryData;
+        }
     }
 
     return productsFromChain
@@ -281,15 +287,32 @@ async function loadProductsFromChain() {
         }));
 }
 
-async function fetchProducts(waitForSync = false, retryCount = 0, showLoading = !waitForSync) {
+function marketplaceProductsChanged(previous, next) {
+    if (previous.length !== next.length) return true;
+    return previous.some((product, index) => {
+        const updated = next[index];
+        return !updated
+            || String(product._id) !== String(updated._id)
+            || product.name !== updated.name
+            || product.description !== updated.description
+            || product.price !== updated.price
+            || product.seller !== updated.seller
+            || product.imageUrl !== updated.imageUrl
+            || product.category !== updated.category
+            || Boolean(product.isSold) !== Boolean(updated.isSold);
+    });
+}
+
+async function fetchProducts(waitForSync = false, retryCount = 0, showLoading = !waitForSync, forceRender = false) {
     const grid = document.getElementById("product-grid");
     if (!grid) return;
     const refreshVersion = ++productRefreshVersion;
 
     if (allProducts && allProducts.length > 0) {
-        // Instant response: Render cached data immediately without blanking or lag!
-        filterAndSortProducts();
-    } else if (showLoading) {
+        // Keep the existing grid visible on tab visits; it already contains the
+        // cached cards. Rebuilding them here makes the marketplace appear to refresh.
+        if (grid.childElementCount === 0 || grid.querySelector('.pl-skeleton-card')) filterAndSortProducts();
+    } else if (showLoading && grid.childElementCount === 0) {
         renderProductSkeletons(grid);
     }
 
@@ -303,6 +326,7 @@ async function fetchProducts(waitForSync = false, retryCount = 0, showLoading = 
 
         // Merge: preserve any locally-added listings (e.g. just-created by the
         // current user) that the lagging public RPC hasn't indexed yet.
+        const previousProducts = allProducts;
         const chainProductIds = new Set(products.map(p => String(p._id)));
         const localOnlyProducts = allProducts.filter(p =>
           !chainProductIds.has(String(p._id))
@@ -313,7 +337,10 @@ async function fetchProducts(waitForSync = false, retryCount = 0, showLoading = 
         if (currentUser && window.PeerLoopAccount) {
             window.PeerLoopAccount.updateListings(products);
         }
-        filterAndSortProducts();
+        if (!marketplaceHasLoaded || forceRender || marketplaceProductsChanged(previousProducts, allProducts)) {
+            filterAndSortProducts();
+        }
+        marketplaceHasLoaded = true;
         
     } catch (error) {
         if (refreshVersion !== productRefreshVersion) return;

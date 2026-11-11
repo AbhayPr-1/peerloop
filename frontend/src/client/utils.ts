@@ -221,7 +221,7 @@ async function logout() {
   } catch (error) {
     console.warn('Could not clear the server session:', error);
   }
-  if (currentUser) (window as any).clearWalletTransactionHistoryCache?.(currentUser.walletAddress);
+  (window as any).clearAllWalletTransactionHistoryCache?.();
   (window as any).clearUserCart?.();
   currentUser = null;
   renderUI();

@@ -209,9 +209,12 @@
 .product-image-gallery .gallery-main {
   display: block;
   width: 100%;
-  height: 200px;
+  height: auto;
+  aspect-ratio: 3 / 2;
   object-fit: cover;
-  border: 1px solid var(--pl-border);
+  border: 0;
+  outline: 0;
+  box-shadow: none;
   border-radius: 0.875rem;
   background: var(--surface-muted);
   transition: transform 0.25s ease;
@@ -227,19 +230,22 @@
 
 .gallery-thumbnails {
   display: flex;
+  box-sizing: border-box;
   gap: 6px;
   overflow-x: auto;
-  padding: 6px 1px 2px;
+  padding: 6px 0 3px;
   scrollbar-width: thin;
+  overscroll-behavior-x: contain;
 }
 
 .gallery-thumb {
   flex: 0 0 44px;
   width: 44px;
   height: 36px;
+  box-sizing: border-box;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--pl-border);
+  border: 1px solid transparent;
   border-radius: 6px;
   background: var(--surface-muted);
   cursor: pointer;
@@ -262,8 +268,30 @@
 }
 
 .product-image-gallery.detail .gallery-main {
+  width: 100%;
   height: min(50vh, 420px);
   min-height: 240px;
+  aspect-ratio: auto;
+}
+
+.product-image-gallery.profile {
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 1rem;
+  overflow: hidden;
+  border-radius: 0.875rem;
+  background: var(--surface-muted);
+}
+
+.product-image-gallery.profile .gallery-main {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+}
+
+.product-image-gallery.profile .gallery-thumbnails {
+  padding: 6px 8px 8px;
 }
 
 .product-image-gallery.compact {
@@ -275,6 +303,7 @@
 .product-image-gallery.compact .gallery-main {
   width: 110px;
   height: 72px;
+  aspect-ratio: auto;
   border-radius: 8px;
 }
 
@@ -944,16 +973,22 @@
   position: relative;
   margin: 0;
   overflow: hidden;
-  background: var(--surface-muted);
+  background: var(--dark-card);
 }
 
 #marketplace #product-grid .product-image-gallery.marketplace .gallery-main {
   height: clamp(12rem, 18vw, 14rem);
   border: 0;
-  border-bottom: 1px solid var(--pl-border);
   border-radius: 0;
   background: var(--surface-muted);
   transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#marketplace #product-grid .product-image-gallery.marketplace .gallery-thumbnails {
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 7px;
+  background: var(--dark-card);
 }
 
 #marketplace #product-grid > .theme-card-bg:hover .gallery-main {

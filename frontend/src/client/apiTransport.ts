@@ -115,7 +115,7 @@ window.PeerLoopApiTransport = Object.freeze({
       },
       listingMetadata: {
         async getAll(timeoutMs = 0) {
-          const response = await request('/api/listing-metadata', { cache: 'no-store' }, timeoutMs);
+          const response = await request('/api/listing-metadata', {}, timeoutMs);
           return readJson<Record<string, string>>(response, `Category service returned HTTP ${response.status}.`);
         },
         saveCategory: (productId, category, fallbackMessage = 'Could not save the category.') => postJson<{ productId: string; category: string }>(

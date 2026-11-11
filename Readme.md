@@ -53,16 +53,20 @@ Set the following values in the root `.env` file:
 | --- | --- |
 | `PORT` | Backend port; defaults to `5001`. |
 | `MONGO_URI` | MongoDB connection string. |
-| `JWT_SECRET` | Secret used to sign session tokens. The setup script can generate one. |
+| `JWT_SECRET` | Secret used to sign session tokens. Production requires at least 32 bytes; the setup script generates a 32-byte random secret. |
 | `SEPOLIA_RPC_URL` | Backend HTTPS RPC endpoint used for block catch-up and as a fallback if WebSocket subscriptions are unavailable. It is not sent to the browser. |
 | `SEPOLIA_WSS_URL` | Optional provider-specific WebSocket endpoint for immediate contract-event subscriptions. If omitted, the backend derives a `wss://` URL from `SEPOLIA_RPC_URL`; HTTP polling resumes automatically if the WebSocket connection fails. |
 | `APP_ORIGIN` | Allowed frontend origin; defaults to `http://localhost:3000`. Set this to the deployed frontend URL in production. |
+| `API_ORIGIN` | Optional public API origin used for production host validation and HTTPS redirects when the API is on a separate host. |
+| `TRUST_PROXY` | Number of reverse-proxy hops or comma-separated proxy IPs/subnets trusted for client IP and HTTPS detection. Set this to match the actual production proxy topology. |
 | `CONTRACT_ADDRESS` | Address of the deployed marketplace contract. |
 | `PRIVATE_KEY` | Wallet key used for contract deployment. |
 | `PINATA_JWT` | Optional Pinata credential for IPFS uploads. |
 
 Never commit `.env` files or share private keys. They are excluded by `.gitignore`.
 For production, serve the frontend over HTTPS. By default, the frontend uses its own origin for API and Socket.IO requests, so configure a reverse proxy to forward `/api` and `/socket.io` to the backend. If the backend has a separate HTTPS origin, set `PEERLOOP_API_URL` in the frontend server environment so the strict Content Security Policy permits that exact API and Socket.IO origin. Configure the backend's `APP_ORIGIN` to the exact frontend origin(s); cookie-authenticated writes and sign-in requests require a matching `Origin` header.
+
+When the production API is on a separate host, set `API_ORIGIN` to its HTTPS origin and set `TRUST_PROXY` to the actual reverse-proxy hop count or trusted proxy addresses. The server rejects unconfigured production Host headers and only redirects to configured hosts.
 
 ## Smart contract
 

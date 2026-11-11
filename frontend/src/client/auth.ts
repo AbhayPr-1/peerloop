@@ -60,7 +60,7 @@ async function handleMetaMaskLogin(buttonElement) {
         
         renderUI(); // Render UI after contract is connected
         await fetchCart();
-        await fetchProducts(); // Fetch products again
+        await fetchProducts(false, 0, false, true); // Refresh cards so wallet actions reflect the signed-in user
         
     } catch (error) {
         showMessage(error.message);

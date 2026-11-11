@@ -11,12 +11,42 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
   next();
 }
 
+function getAllowedRequestHosts(): Set<string> {
+  const configuredOrigins = [
+    ...config.appOrigin.split(','),
+    ...(process.env.API_ORIGIN || '').split(',')
+  ];
+  const hosts = new Set<string>();
+  for (const value of configuredOrigins) {
+    try {
+      hosts.add(new URL(value.trim()).host.toLowerCase());
+    } catch {
+      // Invalid origin settings are rejected by deployment configuration checks.
+    }
+  }
+  return hosts;
+}
+
 export function redirectHttpToHttps(req: Request, res: Response, next: NextFunction) {
   if (!config.isProduction) return next();
-  if (req.secure || req.headers['x-forwarded-proto'] === 'https'
-    || ['localhost', '127.0.0.1', '::1'].includes(req.hostname)) {
-    return next();
+
+  const requestHost = req.get('host');
+  let normalizedHost: string;
+  try {
+    if (!requestHost || requestHost.includes('@')) throw new Error('Invalid host.');
+    const parsedHost = new URL(`https://${requestHost}`);
+    if (parsedHost.username || parsedHost.password || parsedHost.pathname !== '/') throw new Error('Invalid host.');
+    normalizedHost = parsedHost.host.toLowerCase();
+  } catch {
+    return res.status(400).send('Invalid host.');
   }
-  const httpsUrl = `https://${req.headers.host}${req.originalUrl}`;
-  return res.redirect(301, httpsUrl);
+
+  const allowedHosts = getAllowedRequestHosts();
+  const canonicalHost = [...allowedHosts].find((host) => host === normalizedHost);
+  if (!canonicalHost) return res.status(400).send('Host is not configured.');
+
+  if (!req.secure) return res.redirect(301, `https://${canonicalHost}${req.originalUrl}`);
+
+  res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  return next();
 }

@@ -14,10 +14,10 @@ export function createMongooseListingMetadataRepository(): ListingMetadataReposi
     },
 
     async save(contractAddress, productId, sellerWallet, category: ListingCategory) {
-      await ListingMetadata.findOneAndUpdate(
+      await ListingMetadata.updateOne(
         { contractAddress, productId },
         { $set: { sellerWallet, category } },
-        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+        { upsert: true, runValidators: true, setDefaultsOnInsert: true }
       );
     }
   };

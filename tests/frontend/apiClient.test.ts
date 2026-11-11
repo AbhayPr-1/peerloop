@@ -136,6 +136,9 @@ test('marketplace ABI script loads before contract runtime and retains required 
 
   const { renderDocument } = require('../../frontend/src/document');
   const html = renderDocument(undefined, false);
+  assert.ok(html.indexOf('<script type="module" src="/dist/app.js"></script>') < html.indexOf('<script defer src="js/ethers.umd.min.js"></script>'));
+  assert.ok([...html.matchAll(/<script\b(?![^>]*type="module")[^>]*src="[^"]+"[^>]*>/g)]
+    .every(([tag]) => /\bdefer\b/.test(tag)));
   assert.ok(html.indexOf('/dist/js/apiTransport.js') < html.indexOf('/dist/js/apiClient.js'));
   assert.ok(html.indexOf('/dist/js/contracts/marketplaceAbi.js') < html.indexOf('/dist/js/contract.js'));
 });

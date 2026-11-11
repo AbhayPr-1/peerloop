@@ -3,6 +3,7 @@
 const processedRefundUpdates = new Set<string>();
 const processedSaleUpdates = new Set<string>();
 const processedEscrowUpdates = new Set<string>();
+const pendingEscrowRefreshes = new Set<string>();
 let marketplaceListingRefreshTimer: number | null = null;
 let hasSocketConnected = false;
 
@@ -35,7 +36,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     socket = io(window.PeerLoopApi.baseUrl, {
       reconnection: true,             // Enable reconnection attempts
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 500,         
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 30000,
+      randomizationFactor: 0.5,
       timeout: 20000,
     });
     
@@ -45,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         hasSocketConnected = true;
         console.info(`Socket.IO connected (${socket.id}) via ${socket.io.engine.transport.name}.`);
         if (isReconnect) showMessage("Real-time connection restored. Syncing marketplace...", 3000);
-        if (!document.hidden && isMarketplaceSectionVisible()) fetchProducts(true);
+        if (isReconnect && !document.hidden && isMarketplaceSectionVisible()) fetchProducts(true);
     });
 
     socket.on('connect_error', (error) => {
@@ -221,6 +224,9 @@ function applyEscrowUpdate(productId, escrowId, state) {
 }
 
 async function refreshEscrowStateFromChain(productId, escrowId) {
+  const refreshKey = `${productId}:${escrowId}`;
+  if (pendingEscrowRefreshes.has(refreshKey)) return;
+  pendingEscrowRefreshes.add(refreshKey);
   try {
     await readOnlyProviderReady;
     if (!readOnlyContract) return;
@@ -239,6 +245,8 @@ async function refreshEscrowStateFromChain(productId, escrowId) {
     if (state >= 1 && state <= 5) applyEscrowUpdate(productId, escrowId, state);
   } catch (error) {
     console.warn(`Could not refresh escrow ${escrowId} after a resolution vote:`, error);
+  } finally {
+    pendingEscrowRefreshes.delete(refreshKey);
   }
 }
 
@@ -498,6 +506,14 @@ async function createListingFormHandler(e) {
       throw new Error('The listing was confirmed, but its product ID could not be read from the transaction.');
     }
 
+    // Clear the selling form as soon as the on-chain listing is confirmed so a
+    // later category-metadata issue cannot leave stale values ready to resubmit.
+    document.getElementById("create-listing-form").reset();
+    clearListingImageSelection();
+    const categoryContainer = document.getElementById('product-category');
+    categoryContainer.querySelector('span').textContent = 'Electronics';
+    (categoryContainer.querySelector('input[type="hidden"]') as HTMLInputElement).value = 'electronics';
+
     await window.PeerLoopApi.listingMetadata.saveCategory(
       listingEvent.args.id.toString(),
       category,
@@ -522,12 +538,6 @@ async function createListingFormHandler(e) {
       window.PeerLoopAccount.updateListings(allProducts);
     }
     
-    document.getElementById("create-listing-form").reset();
-    clearListingImageSelection();
-    const categoryContainer = document.getElementById('product-category');
-    categoryContainer.querySelector('span').textContent = 'Electronics';
-    (categoryContainer.querySelector('input[type="hidden"]') as HTMLInputElement).value = 'electronics';
-
     window.PeerLoopAccount.setView('listings');
     showSection('user-profile-tab');
     setButtonLoading(buttonElement, false);

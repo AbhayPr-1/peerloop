@@ -8,4 +8,8 @@ const UserSchema = new mongoose.Schema({
   cart: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }]
 });
 
+// Supports the legacy product buy/delete cleanup query that removes a product
+// ID from every user's cart.
+UserSchema.index({ cart: 1 });
+
 module.exports = mongoose.model('User', UserSchema);

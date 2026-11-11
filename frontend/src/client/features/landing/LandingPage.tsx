@@ -1,5 +1,8 @@
-import { useEffect, type FormEvent } from 'react';
-import { NetworkScene3D } from './NetworkScene3D';
+import { Suspense, lazy, useEffect, useState, type FormEvent } from 'react';
+
+const NetworkScene3D = lazy(() => import('./NetworkScene3D').then((module) => ({
+  default: module.NetworkScene3D
+})));
 
 const CONTACT_EMAIL = 'contact@peerloop.market';
 
@@ -34,6 +37,8 @@ const categoriesPreview = [
 ];
 
 export function LandingPage() {
+  const [loadScene, setLoadScene] = useState(false);
+
   useEffect(() => {
     const page = document.querySelector<HTMLElement>('.peerloop-home');
     if (!page) return;
@@ -64,6 +69,13 @@ export function LandingPage() {
     }
 
     const progress = document.querySelector<HTMLElement>('.pl-scroll-progress');
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const idleHandle = idleWindow.requestIdleCallback
+      ? idleWindow.requestIdleCallback(() => setLoadScene(true), { timeout: 1500 })
+      : window.setTimeout(() => setLoadScene(true), 0);
     let frame = 0;
     const updateScrollEffects = () => {
       cancelAnimationFrame(frame);
@@ -80,6 +92,11 @@ export function LandingPage() {
 
     return () => {
       observer?.disconnect();
+      if (typeof idleWindow.cancelIdleCallback === 'function') {
+        idleWindow.cancelIdleCallback(idleHandle);
+      } else {
+        window.clearTimeout(idleHandle);
+      }
       cancelAnimationFrame(frame);
       window.removeEventListener('scroll', updateScrollEffects);
       window.removeEventListener('resize', updateScrollEffects);
@@ -105,7 +122,7 @@ export function LandingPage() {
       {/* Global 3D Full-Page Blockchain Background & Spine */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-85">
         <div className="pl-3d-blockchain-container w-full h-full">
-          <NetworkScene3D />
+          {loadScene && <Suspense fallback={null}><NetworkScene3D /></Suspense>}
         </div>
       </div>
 

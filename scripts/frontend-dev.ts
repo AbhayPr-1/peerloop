@@ -2,11 +2,13 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const zlib = require('zlib');
 const { execSync } = require('child_process');
 
 const FRONTEND_ROOT = path.resolve(__dirname, '../..', 'frontend');
 const PORT = Number(process.env.FRONTEND_PORT || 3000);
 const isDevelopment = process.env.NODE_ENV !== 'production';
+const isLiveReloadEnabled = isDevelopment && process.env.PEERLOOP_LIVE_RELOAD === 'true';
 const documentModulePath = require.resolve('../frontend/src/document');
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -98,7 +100,7 @@ const server = http.createServer((request, response) => {
     response.writeHead(200, {
       'Cache-Control': 'no-store',
       'Content-Type': 'text/html; charset=utf-8'
-    }).end(renderDocument(process.env.PEERLOOP_API_URL, isDevelopment));
+    }).end(renderDocument(process.env.PEERLOOP_API_URL, isLiveReloadEnabled));
     return;
   }
 
@@ -118,21 +120,67 @@ const server = http.createServer((request, response) => {
       return;
     }
     const resolvedPath = filePath;
-    fs.readFile(resolvedPath, (readError, contents) => {
-      if (readError) {
-        response.writeHead(404).end('Not found');
+    const extension = path.extname(resolvedPath).toLowerCase();
+    const contentType = MIME_TYPES[extension] || 'application/octet-stream';
+    const headers: Record<string, string | number> = { 'Content-Type': contentType };
+    setSecurityHeaders(response, request);
+
+    if (isDevelopment) {
+      headers['Cache-Control'] = 'no-store';
+    } else {
+      const etag = `W/"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`;
+      headers.ETag = etag;
+      headers['Last-Modified'] = stats.mtime.toUTCString();
+      headers['Cache-Control'] = 'no-cache';
+
+      const ifNoneMatch = request.headers['if-none-match'];
+      const notModified = ifNoneMatch
+        ? ifNoneMatch.split(',').some((value) => {
+            const candidate = value.trim();
+            return candidate === '*' || candidate.replace(/^W\//, '') === etag.replace(/^W\//, '');
+          })
+        : Boolean(request.headers['if-modified-since'])
+          && Date.parse(request.headers['if-modified-since']) >= Math.floor(stats.mtimeMs / 1000) * 1000;
+
+      if (notModified) {
+        response.writeHead(304, headers).end();
         return;
       }
+    }
 
-      const extension = path.extname(resolvedPath).toLowerCase();
-      const headers = {
-        'Cache-Control': 'no-store',
-        'Content-Type': MIME_TYPES[extension] || 'application/octet-stream'
-      };
-
-      setSecurityHeaders(response, request);
-      response.writeHead(200, headers).end(contents);
+    const acceptsGzip = String(request.headers['accept-encoding'] || '').split(',').some((encoding) => {
+      const [name, ...parameters] = encoding.trim().split(';');
+      return name.toLowerCase() === 'gzip'
+        && !parameters.some((parameter) => /^q\s*=\s*0(?:\.0*)?$/i.test(parameter.trim()));
     });
+    const compressible = /^text\//i.test(contentType) || /(?:javascript|json|xml|svg\+xml)$/i.test(contentType);
+    const useGzip = !isDevelopment && stats.size >= 1024 && acceptsGzip && compressible;
+    if (useGzip) {
+      headers['Content-Encoding'] = 'gzip';
+      headers.Vary = 'Accept-Encoding';
+    } else {
+      headers['Content-Length'] = stats.size;
+    }
+
+    response.writeHead(200, headers);
+    if (request.method === 'HEAD') {
+      response.end();
+      return;
+    }
+
+    const source = fs.createReadStream(resolvedPath);
+    source.on('error', (readError) => {
+      console.error(`Could not stream frontend asset ${resolvedPath}:`, readError.message);
+      if (!response.headersSent) response.writeHead(404).end('Not found');
+      else response.destroy(readError);
+    });
+    if (useGzip) {
+      const gzip = zlib.createGzip();
+      gzip.on('error', (compressionError) => response.destroy(compressionError));
+      source.pipe(gzip).pipe(response);
+    } else {
+      source.pipe(response);
+    }
   });
 });
 
@@ -147,11 +195,12 @@ server.on('error', (error) => {
 
 server.listen(PORT, () => {
   console.log(`Frontend development server: http://localhost:${PORT}`);
-  if (isDevelopment) console.log('Live reload is enabled for files in frontend/.');
+  if (isLiveReloadEnabled) console.log('Live reload is enabled by PEERLOOP_LIVE_RELOAD=true.');
+  else if (isDevelopment) console.log('Live reload is disabled; set PEERLOOP_LIVE_RELOAD=true to enable it.');
 });
 
 let watcher;
-if (isDevelopment) try {
+if (isLiveReloadEnabled) try {
   watcher = fs.watch(FRONTEND_ROOT, { recursive: true }, (_eventType, filename) => {
     if (!filename) return;
     const relativePath = filename.toString().replace(/\\/g, '/');

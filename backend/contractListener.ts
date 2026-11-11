@@ -210,7 +210,7 @@ function startContractListener(io, opts: ListenerOptions = {}) {
 
   function scheduleWebSocketReconnect() {
     if (stopped || !wssUrl || reconnectHandle || activeWebSocketProvider) return;
-    const delayMs = reconnectDelayMs;
+    const delayMs = Math.floor(reconnectDelayMs * (0.5 + Math.random() * 0.5));
     reconnectDelayMs = Math.min(reconnectDelayMs * 2, 30000);
     reconnectHandle = scheduler.setTimeout(() => {
       reconnectHandle = null;

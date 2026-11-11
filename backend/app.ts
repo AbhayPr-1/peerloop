@@ -11,6 +11,19 @@ export interface AppOptions {
   databaseStatus?: () => string;
 }
 
+function getTrustProxySetting(value: string | undefined, isProduction: boolean) {
+  const configured = value?.trim();
+  if (!configured) return isProduction ? 1 : false;
+  if (configured.toLowerCase() === 'false') return false;
+  if (configured.toLowerCase() === 'true') {
+    throw new Error('TRUST_PROXY must be false, a hop count, or trusted proxy addresses; true is unsafe.');
+  }
+  if (/^\d+$/.test(configured)) return Number(configured);
+  const trustedProxies = configured.split(',').map((entry) => entry.trim()).filter(Boolean);
+  if (trustedProxies.length === 0) throw new Error('TRUST_PROXY must contain a hop count or trusted proxy addresses.');
+  return trustedProxies;
+}
+
 export function createApp(options: AppOptions = {}) {
   const app = express();
   const appOrigins = (options.appOrigin || config.appOrigin)
@@ -18,7 +31,10 @@ export function createApp(options: AppOptions = {}) {
   const databaseStatus = options.databaseStatus || (() => 'unknown');
 
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  app.set('trust proxy', getTrustProxySetting(process.env.TRUST_PROXY, config.isProduction));
+  if (config.isProduction && !process.env.TRUST_PROXY?.trim()) {
+    console.warn('TRUST_PROXY is unset; trusting one proxy for backwards compatibility. Configure it to match the deployed proxy topology.');
+  }
   app.use(redirectHttpToHttps);
   app.use(applySecurityHeaders);
   app.use(cors({

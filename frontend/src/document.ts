@@ -51,20 +51,23 @@ export function renderDocument(apiUrl?: string, liveReload = false): string {
   if (!head || !body) throw new Error('Could not render the PeerLoop page template.');
 
   const scripts = [...documentHtml.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/gi)]
-    .map(([, src]) => `<script src="${src}"></script>`)
+    // Load the legacy classic scripts after the React module has synchronously
+    // mounted the DOM nodes they bind to. `defer` preserves their source order
+    // and their shared global scope.
+    .map(([, src]) => `<script defer src="${src}"></script>`)
     .join('\n');
   const bodyClass = body[1].match(/\bclass="([^"]*)"/i)?.[1] || '';
   const apiConfig = apiUrl
     ? `<meta name="peerloop-api-url" content="${String(apiUrl).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char)}">`
     : '';
   const reloadScript = liveReload
-    ? '<script src="/dist/js/liveReload.js"></script>'
+    ? '<script defer src="/dist/js/liveReload.js"></script>'
     : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>${head}${apiConfig}</head>
 <body class="${bodyClass}"><div id="root"></div>
-<script src="/dist/app.js"></script>
+<script type="module" src="/dist/app.js"></script>
 ${scripts}
 ${reloadScript}
 </body>

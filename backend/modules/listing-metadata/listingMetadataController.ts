@@ -9,7 +9,9 @@ export function createListingMetadataController(
     async list(_req: Request, res: Response) {
       try {
         const categories = await service.listCategories();
-        return res.set('Cache-Control', 'no-store').json(categories);
+        // Categories are public and change only when a seller saves metadata.
+        // A short cache cuts repeated Mongo reads during chain refreshes.
+        return res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=20').json(categories);
       } catch (error) {
         if (error instanceof ListingMetadataError) {
           if (error.logMessage) console.error(error.logMessage);

@@ -63,7 +63,7 @@ test('backend config rejects invalid ports at startup', () => {
 });
 
 test('production config requires explicit database and frontend origins', () => {
-  const production = { NODE_ENV: 'production', JWT_SECRET: 'test-secret' };
+  const production = { NODE_ENV: 'production', JWT_SECRET: 'test-secret'.padEnd(32, 'x') };
   assert.throws(() => createBackendConfig(production), /MONGO_URI must be explicitly configured/);
   assert.throws(() => createBackendConfig({
     ...production,
