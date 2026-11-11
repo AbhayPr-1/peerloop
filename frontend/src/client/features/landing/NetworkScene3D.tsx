@@ -294,8 +294,8 @@ function WebGLScene() {
       intersectionObserver.observe(container);
 
       // --- ANIMATION LOOP ---
-      const clock = new THREE.Clock();
       let lastTime = performance.now();
+      let elapsedTime = 0;
 
       const animate = () => {
         if (isDisposed || document.hidden || !isVisible) return;
@@ -305,7 +305,7 @@ function WebGLScene() {
         const now = performance.now();
         const delta = Math.min(0.1, Math.max(0.001, (now - lastTime) / 1000));
         lastTime = now;
-        const elapsedTime = clock.getElapsedTime();
+        elapsedTime += delta;
 
         mouseX += (targetMouseX - mouseX) * 0.06;
         mouseY += (targetMouseY - mouseY) * 0.06;
