@@ -90,6 +90,74 @@ test('contract listener emits the existing product_updated payload and stops its
   assert.equal(intervalCleared, true);
 });
 
+test('contract listener keeps HTTP polling when WSS startup times out and cleanup emits a socket error', async () => {
+  const io = new EventEmitter();
+  let activeIntervals = 0;
+  let intervalHandle: unknown;
+  let webSocketProviderDestroyed = false;
+  let cleanupErrorEmitted = false;
+  const warnings: string[] = [];
+  const scheduler = {
+    setInterval(callback: () => void) {
+      intervalHandle = { callback };
+      activeIntervals += 1;
+      return intervalHandle;
+    },
+    clearInterval(handle: unknown) {
+      if (handle === intervalHandle) activeIntervals -= 1;
+    },
+    setTimeout(callback: (...args: any[]) => void, delayMs: number) {
+      return globalThis.setTimeout(callback, delayMs === 7000 ? 0 : delayMs);
+    },
+    clearTimeout(handle: NodeJS.Timeout) { globalThis.clearTimeout(handle); }
+  };
+  const websocket = new EventEmitter();
+  const webSocketProvider = {
+    websocket,
+    getBlockNumber() { return new Promise<number>(() => {}); },
+    destroy() {
+      webSocketProviderDestroyed = true;
+      setImmediate(() => {
+        cleanupErrorEmitted = true;
+        websocket.emit('error', new Error('WebSocket was closed before the connection was established'));
+      });
+    }
+  };
+  const listener = startContractListener(io, {
+    rpcUrl: 'https://rpc.test.invalid',
+    wssUrl: 'wss://rpc.test.invalid',
+    contractAddress: '0x0000000000000000000000000000000000000001',
+    pollIntervalMs: 60_000,
+    provider: { async getBlockNumber() { return 101; }, destroy() {} },
+    contract: { async queryFilter() { return []; } },
+    webSocketProvider,
+    webSocketContract: {},
+    logger: { ...silentLogger, warn(message: string) { warnings.push(message); } },
+    scheduler
+  });
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('WSS fallback did not complete')), 2_000);
+      const check = () => {
+        const fellBack = warnings.some((message) => message.includes('continuing with HTTP event polling'));
+        if (webSocketProviderDestroyed && cleanupErrorEmitted && fellBack) {
+          clearTimeout(timeout);
+          resolve();
+        } else {
+          setImmediate(check);
+        }
+      };
+      check();
+    });
+    assert.equal(activeIntervals, 1, 'HTTP polling should remain active after WSS startup fails');
+  } finally {
+    listener.stop();
+  }
+
+  assert.equal(activeIntervals, 0, 'stopping the listener should clear the polling interval');
+});
+
 test('contract listener safely remains disabled for missing or placeholder configuration', () => {
   const logger = { ...silentLogger, warnings: 0, warn() { this.warnings += 1; } };
   const listener = startContractListener(new EventEmitter(), {

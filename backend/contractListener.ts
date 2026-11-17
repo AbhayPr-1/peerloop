@@ -189,7 +189,22 @@ function startContractListener(io, opts: ListenerOptions = {}) {
     if (blockListener) {
       try { Promise.resolve(provider.off('block', blockListener)).catch(() => {}); } catch (_) {}
     }
-    try { provider.destroy(); } catch (_) {}
+    // Closing a still-connecting `ws` socket emits an asynchronous `error`.
+    // Without a listener, Node treats that cleanup error as fatal and exits.
+    try {
+      const socket = provider && provider.websocket;
+      if (socket && typeof socket.once === 'function') {
+        socket.once('error', () => {});
+      } else if (socket && typeof socket.addEventListener === 'function') {
+        socket.addEventListener('error', () => {}, { once: true });
+      }
+    } catch (_) {}
+    try {
+      const destroyResult = provider.destroy();
+      if (destroyResult && typeof destroyResult.catch === 'function') {
+        destroyResult.catch(() => {});
+      }
+    } catch (_) {}
   }
 
   function detachActiveWebSocket() {
